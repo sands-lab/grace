@@ -13,7 +13,7 @@ docker pull sandslab/grace
 The following assumes you want to install it manually.
 GRACE comes as an installable pip package. It is recommended to install it with:
 ```shell script
-git clone https://github.com/sands-lab/grace.git && cd grace_dl
+git clone https://github.com/sands-lab/grace.git && cd grace
 pip3 install --user -e .
 ```
 This way, Python will use the local directory as a package, which allows experimentation with the codebase.
