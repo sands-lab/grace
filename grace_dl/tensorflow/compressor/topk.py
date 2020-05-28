@@ -29,6 +29,7 @@ class TopKCompressor(Compressor):
 
         values, indices = sparsify(tensor_flatten, self.compress_ratio)
 
+        indices = tf.cast(indices, tf.int32)
         values = tf.bitcast(values, tf.int32)
         tensor_compressed = tf.concat([values, indices], 0)
         ctx = tensor_shape, elemnum
@@ -39,8 +40,8 @@ class TopKCompressor(Compressor):
         tensor_compressed, = tensors_compressed
         values, indices = tf.split(tensor_compressed, 2)
         values = tf.bitcast(values, tf.float32)
-        tensor_shape = ctx
-        tensor_size = tf.math.reduce_prod(tensor_shape)
+        tensor_shape, tensor_size = ctx
+        #tensor_size = tf.math.reduce_prod(tensor_shape)
 
         tensor_decompressed = desparsify(indices, values, tensor_size)
 
