@@ -107,7 +107,7 @@ hvd.broadcast_parameters(model.state_dict(), root_rank=0)
 hvd.broadcast_optimizer_state(optimizer, root_rank=0)
 
 # GRACE: compression algorithm.
-grc = Allgather(TopKCompressor(0.3), ResidualMemory())
+grc = Allgather(TopKCompressor(0.3), ResidualMemory(), hvd.size())
 
 # Horovod: wrap optimizer with DistributedOptimizer.
 optimizer = hvd.DistributedOptimizer(optimizer, grc, named_parameters=model.named_parameters())
