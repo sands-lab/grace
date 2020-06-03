@@ -14,6 +14,7 @@ class QSGDCompressor(Compressor):
         tensor = tensor.flatten()
 
         norm = tensor.norm()
+        norm = norm.flatten()
         abs_gradient = tensor.abs()
 
         level_float = self.quantum_num / norm * abs_gradient
