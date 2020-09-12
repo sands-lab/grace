@@ -74,6 +74,9 @@ def grace_from_params(params):
     elif mem == 'residual':
         from grace_dl.tensorflow.memory.residual import ResidualMemory
         memory = ResidualMemory()
+    elif mem == 'efsignsgd':
+        from grace_dl.tensorflow.memory.efsignsgd import EFSignSGDMemory
+        memory = EFSignSGDMemory()
     else:
         raise NotImplementedError(mem)
 

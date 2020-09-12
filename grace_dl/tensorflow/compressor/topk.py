@@ -8,7 +8,7 @@ def sparsify(tensor, compress_ratio):
     k = max(1, int(elemnum * compress_ratio))
     _, indices = tf.math.top_k(tf.math.abs(tensor), k)
     values = tf.gather(tensor, indices)
-    return indices, values
+    return values, indices
 
 
 def desparsify(indices, values, tensor_size):

@@ -4,26 +4,10 @@ from grace_dl.tensorflow import Compressor
 
 
 class EFSignSGDCompressor(Compressor):
-    residuals = {}
 
     def __init__(self, lr):
         super().__init__()
         self.learning_rate = lr
-
-    def compensate(self, tensor):
-        """Update the tensor with the residuals."""
-        name = tensor.name
-        self.residuals[tensor.name] = tf.Variable(tf.zeros_like(tensor), trainable=False)
-        tensor = self.residuals[name] + self.learning_rate * tensor
-        return tensor
-
-    def update(self, tensor, tensor_compensate, tensor_compressed, ctx):
-        """Update the residuals."""
-        name = tensor.name
-        tensor_decompressed = self.decompress(tensor_compressed, ctx)
-        delta = tensor_compensate - tensor_decompressed
-        update_op = self.residuals[name].assign(delta)
-        return [update_op]
 
     def aggregate(self, tensors):
         """Aggregate a list of tensors."""
