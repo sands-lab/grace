@@ -42,5 +42,5 @@ class Allgather(Communicator):
             ranki_decompressed = self.compressor.decompress(ranki_tensors, ctx)
             decompressed_tensors.append(ranki_decompressed)
 
-        aggregated_tensor = self.compressor.aggregate(decompressed_tensors)
-        return aggregated_tensor
+        tensors_aggregated = self.compressor.aggregate(decompressed_tensors)
+        return (tensors_aggregated / self.world_size) if self.compressor.average else tensors_aggregated
