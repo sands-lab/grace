@@ -15,7 +15,12 @@ class Allgather(Communicator):
         :param name: for the all_gather operation
         :return: handles to synchronize, tensor sizes per rank
         """
-        tensors_size = [t.size()[0] for t in tensors_compressed]  # list of tensor size for this rank, allgather on the 1st dimension of the tensor
+        # list of tensor size for this rank, allgather on the 1st dimension of the tensor
+        tensors_size = []
+        for t in tensors_compressed:
+            size_dim0 = t.size()[0] if len(t.size())>0 else t.numel()
+            tensors_size.append(size_dim0)
+
         if self.compressor.tensors_size_are_same:
             tensors_size_ag = [tensors_size] * self.world_size  # list of tensor sizes per rank
             tensor_sizes = zip(*tensors_size_ag)  # transpose
