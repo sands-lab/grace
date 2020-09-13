@@ -19,7 +19,7 @@ def grace_from_params(params):
     elif comp == 'fp16':
         from grace_dl.tensorflow.compressor.fp16 import FP16Compressor
         compressor = FP16Compressor()
-    elif comp == 'inceptionnc':
+    elif comp == 'inceptionn':
         from grace_dl.tensorflow.compressor.inceptionn import INCEPTIONNCompressor
         compressor = INCEPTIONNCompressor(error_bound=2e-10)
     elif comp == 'natural':
