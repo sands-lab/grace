@@ -10,10 +10,12 @@ class PowerSGDCompressor(Compressor):
     T. Vogels, S. P. Karimireddy, and M. Jaggi. In NeurIPS, 2019.
     """
 
-    def __init__(self, world_size):
+    def __init__(self, momentum_factor, world_size):
         super().__init__()
         self.q_memory = {}
         self.world_size = world_size
+        self.momentum = {}
+        self.momentum_factor = momentum_factor
 
     def compress(self, tensor):
         tensor_dims = len(tensor.get_shape().as_list())
@@ -32,7 +34,9 @@ class PowerSGDCompressor(Compressor):
         q = tf.linalg.matmul(matrix, p, transpose_a=True)
         q = _allreduce(q) / self.world_size
         new_q = self.q_memory[tensor.name].assign(q)
-        ctx = p, new_q, tensor_shape
+        ctx = p, new_q, tensor_shape, tensor.name
+        # variable initialization needs to be called before communication starts
+        self.momentum[tensor.name] = tf.Variable(tf.zeros_like(tensor), trainable=False)
 
         return [], ctx
 
@@ -41,8 +45,12 @@ class PowerSGDCompressor(Compressor):
             tensor, = tensors
             return tensor
 
-        p, q, tensor_shape = ctx
+        p, q, tensor_shape, tensor_name = ctx
         new_tensor = tf.linalg.matmul(p, q, transpose_b=True)
         new_tensor = tf.reshape(new_tensor, tensor_shape)
 
-        return new_tensor
+        new_momentum = self.momentum[tensor_name].assign(self.momentum_factor * self.momentum[tensor_name] +
+                                                         (1 - self.momentum_factor) * new_tensor)
+        tensor_decompressed = new_momentum + new_tensor
+
+        return tensor_decompressed

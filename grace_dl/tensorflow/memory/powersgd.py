@@ -15,7 +15,7 @@ class PowerSGDMemory(Memory):
         if tensor_dims == 1:
             return tensor
 
-        self.residuals[tensor.name] = tf.Variable(tf.zeros_like(tensor), trainable=False)
+        self.residuals[name] = tf.Variable(tf.zeros_like(tensor), trainable=False)
         tensor = self.residuals[tensor.name] + tensor
 
         n = tensor.get_shape().as_list()[0]
@@ -32,7 +32,7 @@ class PowerSGDMemory(Memory):
         if ctx is None:
             return []
 
-        new_tensor = compressor.decompress(tensor, ctx)
-        op = self.residuals[tensor.name].assign(tensor - new_tensor)
+        tensor_decompressed = compressor.decompress(tensor, ctx)
+        op = self.residuals[name].assign(tensor - tensor_decompressed)
 
         return [op]
