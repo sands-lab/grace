@@ -31,7 +31,7 @@ To use GRACE:
 - **As a User**: you need to change a few lines of code on your training script. Refer [here](TRAINING.md) for examples.
 - **As an Implementer of new Compressors**: you need to implement a `Compressor` class, and optionally a `Memory` or even a `Communicator` class.
 Refer [here](IMPLEMENTING.md) for more information.
-- **For Benchmarking methods**: you can use the training scripts and compare with our data [here](https://github.com/sands-lab/grace-data)
+- **For Benchmarking methods**: you can use the [training scripts](https://github.com/sands-lab/grace-benchmarks) and compare with [our data](https://github.com/sands-lab/grace-data).
 
 ## Running
 Running a training script is no different with GRACE. See the Training guide for more information.
