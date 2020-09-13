@@ -3,7 +3,7 @@ import tensorflow as tf
 from grace_dl.tensorflow import Compressor
 
 
-class OnebitCompressor(Compressor):
+class OneBitCompressor(Compressor):
     """
     (2014). 1-bit stochastic gradient descent and its application to data-parallel distributed training of speech DNNs.
     Retrieved from https://www.microsoft.com/en-us/research/publication/1-bit-stochastic-gradient-descent-and-application-to-data-parallel-distributed-training-of-speech-dnns/

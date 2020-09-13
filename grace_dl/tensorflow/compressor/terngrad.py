@@ -3,7 +3,7 @@ import tensorflow as tf
 from grace_dl.tensorflow import Compressor
 
 
-class TerngradCompressor(Compressor):
+class TernGradCompressor(Compressor):
     """
     (2017). TernGrad: Ternary Gradients to Reduce Communication in Distributed Deep Learning.
     Retrieved from http://arxiv.org/abs/1705.07878

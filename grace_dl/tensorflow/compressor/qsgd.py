@@ -3,7 +3,7 @@ import tensorflow as tf
 from grace_dl.tensorflow import Compressor
 
 
-class QsgdCompressor(Compressor):
+class QSGDCompressor(Compressor):
     """
     (2016). QSGD: Communication-Efficient SGD via Gradient Quantization and Encoding.
     Retrieved from http://arxiv.org/abs/1610.02132

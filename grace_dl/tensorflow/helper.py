@@ -26,14 +26,14 @@ def grace_from_params(params):
         from grace_dl.tensorflow.compressor.none import NoneCompressor
         compressor = NoneCompressor()
     elif comp == 'onebit':
-        from grace_dl.tensorflow.compressor.onebit import OnebitCompressor
-        compressor = OnebitCompressor()
+        from grace_dl.tensorflow.compressor.onebit import OneBitCompressor
+        compressor = OneBitCompressor()
     elif comp == 'powersgd':
         from grace_dl.tensorflow.compressor.powersgd import PowerSGDCompressor
         compressor = PowerSGDCompressor(momentum_factor=0.9, world_size=world_size)
     elif comp == 'qsgd':
-        from grace_dl.tensorflow.compressor.qsgd import QsgdCompressor
-        compressor = QsgdCompressor(quantum_num=64)
+        from grace_dl.tensorflow.compressor.qsgd import QSGDCompressor
+        compressor = QSGDCompressor(quantum_num=64)
     elif comp == 'randomk':
         from grace_dl.tensorflow.compressor.randomk import RandomKCompressor
         compressor = RandomKCompressor(compress_ratio=0.01)
@@ -47,8 +47,8 @@ def grace_from_params(params):
         from grace_dl.tensorflow.compressor.sketch import SketchCompressor
         compressor = SketchCompressor(quantiles=64)
     elif comp == 'terngrad':
-        from grace_dl.tensorflow.compressor.terngrad import TerngradCompressor
-        compressor = TerngradCompressor()
+        from grace_dl.tensorflow.compressor.terngrad import TernGradCompressor
+        compressor = TernGradCompressor()
     elif comp == 'threshold':
         from grace_dl.tensorflow.compressor.threshold import ThresholdCompressor
         compressor = ThresholdCompressor(threshold=0.01)
