@@ -5,7 +5,7 @@ from grace_dl.tensorflow import Compressor
 
 class DgcCompressor(Compressor):
 
-    def __init__(self, compress_ratio=0.3):
+    def __init__(self, compress_ratio):
         super().__init__(tensors_size_are_same=False)
         self.compress_ratio = compress_ratio
 
