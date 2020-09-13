@@ -4,6 +4,10 @@ from grace_dl.tensorflow import Compressor
 
 
 class AdaqCompressor(Compressor):
+    """
+    (2017). Communication quantization for data-parallel training of deep neural networks.
+    https://doi.org/10.1109/MLHPC.2016.4
+    """
     def __init__(self, compress_ratio):
         super().__init__(tensors_size_are_same=False)
         self.compress_ratio = compress_ratio

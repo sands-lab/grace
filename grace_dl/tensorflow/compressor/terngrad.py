@@ -4,7 +4,10 @@ from grace_dl.tensorflow import Compressor
 
 
 class TerngradCompressor(Compressor):
-
+    """
+    (2017). TernGrad: Ternary Gradients to Reduce Communication in Distributed Deep Learning.
+    Retrieved from http://arxiv.org/abs/1705.07878
+    """
     def compress(self, tensor):
         tensor_shape = tf.shape(tensor)
         tensor_flatten = tf.reshape(tensor, [-1])

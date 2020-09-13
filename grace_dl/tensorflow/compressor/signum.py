@@ -4,6 +4,11 @@ from grace_dl.tensorflow import Compressor
 
 
 class SignumCompressor(Compressor):
+    """
+    (2018). signSGD: Compressed Optimisation for Non-Convex Problems.
+    Retrieved from https://arxiv.org/abs/1802.04434
+    """
+
     def __init__(self, momentum):
         super().__init__()
         self.momentum_factor = momentum

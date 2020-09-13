@@ -4,7 +4,10 @@ from grace_dl.tensorflow import Compressor
 
 
 class U8bitCompressor(Compressor):
-
+    """
+    (2015). 8-Bit Approximations for Parallelism in Deep Learning.
+    Retrieved from http://arxiv.org/abs/1511.04561
+    """
     def compress(self, tensor):
         dict128 = tf.constant(
             [

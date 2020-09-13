@@ -4,7 +4,10 @@ from grace_dl.tensorflow import Compressor
 
 
 class SignSGDCompressor(Compressor):
-
+    """
+    (2018). signSGD: Compressed Optimisation for Non-Convex Problems.
+    Retrieved from https://arxiv.org/abs/1802.04434
+    """
     def aggregate(self, tensors):
         """Aggregate a list of tensors."""
         agged_tensor = tf.math.add_n(tensors)

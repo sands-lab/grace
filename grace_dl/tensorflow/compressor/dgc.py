@@ -4,7 +4,10 @@ from grace_dl.tensorflow import Compressor
 
 
 class DgcCompressor(Compressor):
-
+    """
+    (2017). Deep Gradient Compression: Reducing the Communication Bandwidth for Distributed Training.
+    Retrieved from http://arxiv.org/abs/1712.01887
+    """
     def __init__(self, compress_ratio):
         super().__init__(tensors_size_are_same=False)
         self.compress_ratio = compress_ratio

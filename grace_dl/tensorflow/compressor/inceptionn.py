@@ -6,7 +6,10 @@ from grace_dl.tensorflow import Compressor
 
 
 class INCEPTIONNCompressor(Compressor):
-
+    """
+    (2018). A network-centric hardware/algorithm co-design to accelerate distributed training of deep neural networks.
+    https://doi.org/10.1109/MICRO.2018.00023
+    """
     def __init__(self, error_bound):
         super().__init__(tensors_size_are_same=False)
         self.error_bound = error_bound

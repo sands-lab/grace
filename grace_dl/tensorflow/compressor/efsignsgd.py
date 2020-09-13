@@ -4,7 +4,10 @@ from grace_dl.tensorflow import Compressor
 
 
 class EFSignSGDCompressor(Compressor):
-
+    """
+    (2019). Error Feedback Fixes SignSGD and other Gradient Compression Schemes.
+    Retrieved from http://arxiv.org/abs/1901.09847
+    """
     def __init__(self, lr):
         super().__init__()
         self.learning_rate = lr
