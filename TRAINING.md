@@ -18,9 +18,12 @@ world_size = hvd.size()
 grc = Allgather(TopKCompressor(0.3), ResidualMemory(), world_size)
 
 tape = hvd.DistributedGradientTape(tape, grace=grc)
+# or
+optimizer = hvd.DistributedOptimizer(optimizer, grace=grc)
 
 # or with helper
 from grace_dl.tensorflow.helper import grace_from_params
+params = {'compressor': 'topk', 'memory': 'residual', 'communicator': 'allgather'}
 grc = grace_from_params(params)
 ``` 
 ```python
@@ -30,12 +33,14 @@ from grace_dl.torch.communicator.allgather import Allgather
 from grace_dl.torch.compressor.topk import TopKCompressor
 from grace_dl.torch.memory.residual import ResidualMemory
 
-grc = Allgather(TopKCompressor(0.3), ResidualMemory())
+world_size = hvd.size()
+grc = Allgather(TopKCompressor(0.3), ResidualMemory(), world_size)
 
 optimizer = hvd.DistributedOptimizer(optimizer, grace=grc, named_parameters=model.named_parameters())
 
 # or with helper
 from grace_dl.torch.helper import grace_from_params
+params = {'compressor': 'topk', 'memory': 'residual', 'communicator': 'allgather'}
 grc = grace_from_params(params)
 ``` 
 
@@ -54,5 +59,6 @@ grc = Allgather(TopKCompressor(0.3), ResidualMemory())
 
 # or with helper
 from grace_dl.dist.helper import grace_from_params
+params = {'compressor': 'topk', 'memory': 'residual', 'communicator': 'allgather'}
 grc = grace_from_params(params)
 ``` 
