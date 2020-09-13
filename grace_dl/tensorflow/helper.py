@@ -4,10 +4,7 @@ def grace_from_params(params):
     comp = params.get('compressor', 'none')
     mem = params.get('memory', 'none')
     comm = params.get('communicator', 'allreduce')
-    if comp == 'adapsparse':
-        from grace_dl.tensorflow.compressor.adapsparse import AdapSparseCompressor
-        compressor = AdapSparseCompressor(compress_ratio=0.01)
-    elif comp == 'adaq':
+    if comp == 'adaq':
         from grace_dl.tensorflow.compressor.adaq import AdaqCompressor
         compressor = AdaqCompressor(compress_ratio=0.01)
     elif comp == 'dgc':
