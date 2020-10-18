@@ -6,8 +6,8 @@ from grace_dl.dist import Compressor
 def sparsify(tensor, compress_ratio):
     tensor = tensor.flatten()
     k = max(1, int(tensor.numel() * compress_ratio))
-    _, indices = torch.topk(tensor.abs(), k)
-    values = tensor[indices]
+    _, indices = torch.topk(tensor.abs(), k, sorted=False,)
+    values = torch.gather(tensor, 0, indices)
     return values, indices
 
 

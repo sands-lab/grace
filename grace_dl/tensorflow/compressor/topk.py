@@ -6,7 +6,7 @@ from grace_dl.tensorflow import Compressor
 def sparsify(tensor, compress_ratio):
     elemnum = tensor.get_shape().as_list()[0]
     k = max(1, int(elemnum * compress_ratio))
-    _, indices = tf.math.top_k(tf.math.abs(tensor), k)
+    _, indices = tf.math.top_k(tf.math.abs(tensor), k, sorted=False)
     values = tf.gather(tensor, indices)
     return values, indices
 
