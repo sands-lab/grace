@@ -200,9 +200,9 @@ def run_batches(model, batches, training, grc=None, optimizer_step=None, stats=N
         stats.append(output)
         if training:
             output['loss'].sum().backward()
-            for index, (name, layer) in enumerate(model.named_parameters()):
-                grad = layer.grad.data
-                new_tensor = grc.step(grad)
+            for index, (name, parameter) in enumerate(model.named_parameters()):
+                grad = parameter.grad.data
+                new_tensor = grc.step(grad, name)
                 grad.copy_(new_tensor)
             optimizer_step()
             model.zero_grad()
