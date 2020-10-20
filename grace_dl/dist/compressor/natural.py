@@ -1,34 +1,40 @@
 import torch
+import cupy  # conda install -c conda-forge cupy=7.0.0=py37h0c141eb_2
+from torch.utils.dlpack import to_dlpack
+from torch.utils.dlpack import from_dlpack
 
-from grace_dl.dist import Compressor
+from grace_dl.torch import Compressor
 
 
 class NaturalCompressor(Compressor):
+    def __init__(self):
+        super().__init__()
 
     def compress(self, tensor, name):
         shape = tensor.size()
-        tensor = tensor.flatten()
+        tensor_flatten = tensor.flatten()
+        cupy_tensor = cupy.fromDlpack(to_dlpack(tensor_flatten))
+        tensor_cast = cupy_tensor.view(cupy.int32)
+        sign = tensor_cast & cupy.int32(0b10000000000000000000000000000000)
+        exp = tensor_cast & cupy.int32(0b01111111100000000000000000000000)
+        mantissa = tensor_cast & cupy.int32(0b00000000011111111111111111111111)
+        exp_add_one = mantissa > cupy.random.randint(low=0, high=0b00000000011111111111111111111111,
+                                                     size=cupy_tensor.shape,
+                                                     dtype=cupy.int32)
+        exponent = cupy.where(exp_add_one, exp + 0b00000000100000000000000000000000, exp)
+        exp_shift = cupy.clip(exponent, a_min=0b00001001000000000000000000000000, a_max=0b01001000100000000000000000000000)
+        exps = cupy.right_shift(exp_shift, 23)
+        exps = cupy.bitwise_or(cupy.right_shift(sign, 24), exps - 18)
+        tensor_compressed = exps.astype(cupy.uint8)
+        return [from_dlpack(tensor_compressed.toDlpack())], shape
 
-        sign = torch.sign(tensor)
-        tensor_abs = tensor.abs()
-        tensor_log = torch.log2(tensor_abs)
-        log_ceil = tensor_log.ceil().char()
-        log_floor = tensor_log.floor().char()
-        q = 2 ** log_floor
-        p = ((2 ** log_ceil) - tensor_abs) / q
-        p[q == 0] = 0.5
-        exponent = log_floor + torch.bernoulli(1 - p)
 
-        exponent = exponent.clamp(-110, 17) - 18
-        exponent[sign == -1] += 127
-        exponent[sign == 0] = -128
-
-        return exponent, shape
-
-    def decompress(self, exponent, shape):
-        sign = exponent >= 0
-        exponent[sign] -= 127
-        exponent += 18
-        tensor_abs = 2 ** exponent.float()
-        tensor = torch.where(sign, -tensor_abs, tensor_abs)
-        return tensor.view(shape)
+    def decompress(self, tensor_compressed, shape):
+        tensor_compressed, = tensor_compressed
+        cupy_tensor = cupy.fromDlpack(to_dlpack(tensor_compressed))
+        sign = cupy_tensor > 127
+        exps = cupy.bitwise_and(cupy_tensor, 0b01111111)
+        floats = cupy.left_shift((exps + 18).astype(cupy.int32), 23).view(cupy.float32)
+        tensor_decompressed = cupy.where(sign, -floats, floats)
+        tensor_decompressed = cupy.multiply((exps >= 1).astype(cupy.float32), tensor_decompressed)
+        return from_dlpack(tensor_decompressed.toDlpack()).view(shape)
