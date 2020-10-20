@@ -16,6 +16,7 @@ class RandomKCompressor(Compressor):
     """Python libraries Based Compress by performing sparsification (i.e., sending a ratio of the actual tensor size."""
 
     def __init__(self, compress_ratio):
+        super().__init__()
         self.global_step = 0
         self.compress_ratio = compress_ratio
 
