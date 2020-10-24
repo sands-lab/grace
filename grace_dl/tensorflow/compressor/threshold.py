@@ -12,7 +12,7 @@ class ThresholdCompressor(Compressor):
     def compress(self, tensor):
         tensor_shape = tf.shape(tensor)
         tensor_flatten = tf.reshape(tensor, [-1])
-        thr_mask = tf.math.greater_equal(tf.math.abs(tensor_flatten), self.threshold)
+        thr_mask = tf.math.greater(tf.math.abs(tensor_flatten), self.threshold)
         values = tf.boolean_mask(tensor_flatten, thr_mask)
         indices = tf.reshape(tf.where(thr_mask), [-1])
         ctx = tensor_shape

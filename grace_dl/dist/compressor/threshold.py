@@ -14,7 +14,7 @@ class ThresholdCompressor(Compressor):
         tensor = tensor.flatten()
         numel = tensor.numel()
 
-        indices, = torch.where(tensor.abs() >= self.threshold)
+        indices, = torch.where(tensor.abs() > self.threshold)
         values = tensor[indices]
         ctx = shape, numel
         return [values, indices], ctx
