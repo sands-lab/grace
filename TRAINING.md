@@ -44,7 +44,6 @@ params = {'compressor': 'topk', 'memory': 'residual', 'communicator': 'allgather
 grc = grace_from_params(params)
 ``` 
 
-[Here](examples) you can find some simple examples adapted from the examples provided by Horovod.
 
 ## PyTorch distributed (DDP)
 The PyTorch distributed implementation follows closely the Horovod PyTorch implementation, replacing the communication
@@ -55,10 +54,31 @@ from grace_dl.dist.communicator.allgather import Allgather
 from grace_dl.dist.compressor.topk import TopKCompressor
 from grace_dl.dist.memory.residual import ResidualMemory
 
-grc = Allgather(TopKCompressor(0.3), ResidualMemory())
+grc = Allgather(TopKCompressor(0.3), ResidualMemory(), args.world_size)
 
 # or with helper
 from grace_dl.dist.helper import grace_from_params
-params = {'compressor': 'topk', 'memory': 'residual', 'communicator': 'allgather'}
+params = {'compressor': 'topk', 'memory': 'residual', 'communicator': 'allgather', 'world_size': args.world_size}
 grc = grace_from_params(params)
 ``` 
+
+## Example
+
+[Here](examples) you can find some simple examples adapted from the examples provided by Horovod.
+
+Run on 2 machines with one GPU each:
+```bash
+horovodrun -np 2 -H server1_ip:1,server2_ip:1 python examples/tensorflow/tensorflow_mnist.py
+
+horovodrun -np 2 -H server1_ip:1,server2_ip:1 python examples/torch/pytorch_mnist.py
+
+```
+
+```bash
+# node 1
+python examples/dist/CIFAR10-dawndist/dawn.py --master_address=server1_ip --rank=0 --world_size=2
+# node 2
+python examples/dist/CIFAR10-dawndist/dawn.py --master_address=server1_ip --rank=1 --world_size=2
+
+```
+
