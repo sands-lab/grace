@@ -1,0 +1,36 @@
+name: GARCE
+
+channels:
+  - conda-forge
+  - defaults
+  - pytorch
+
+dependencies:
+  - cmake=3.17
+  - cudatoolkit-dev=10.1
+  - cudnn=7.6
+  - cupti=10.1
+  - cupy=7.0
+  - cxx-compiler=1.1
+  - gxx_linux-64=7.3
+  - jupyterlab=2.2
+  - mpi4py=3.0 # installs cuda-aware openmpi
+  - nccl=2.5
+  - cupy=7.0
+  - nodejs=14
+#  - nvcc_linux-64=10.1
+  - pip=20.1
+#  - pip:
+    #- mxnet-cu101mkl==1.6.* # makes sure frameworks are installed prior to horovod
+    #- -r file:requirements.txt
+  - python=3.7
+  - pytorch=1.4
+  - tensorboard=1.14.0=py37hf484d3e_0
+  - tensorflow=1.14.0=gpu_py37h74c33d7_0
+  - tensorflow-base=1.14.0=gpu_py37he45bfe2_0
+  - tensorflow-estimator=1.14.0=py_0
+  - tensorflow-gpu=1.14.0=h0d30ee6_0
+  - torchvision
+  - pip:
+    - wandb==0.8.27
+    - tensorflow-probability==0.7
