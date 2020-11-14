@@ -121,6 +121,11 @@ def main():
     from grace_dl.dist.memory.residual import ResidualMemory
     grc = Allgather(TopKCompressor(0.3), ResidualMemory(), args.world_size)
 
+    from grace_dl.dist.helper import grace_from_params
+    params = {'compressor': 'none', 'memory': 'none', 'communicator': 'allreduce'}
+    params['world_size'] = args.world_size
+    grc = grace_from_params(params)
+
     train(model, opt, train_batches, test_batches, epochs, args.master_address, args.rank, grc,
           loggers=(TableLogger(), TSV), timer=timer, test_time_in_total=False, backend=args.backend)
 

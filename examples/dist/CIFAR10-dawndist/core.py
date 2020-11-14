@@ -221,7 +221,7 @@ def train_epoch(model, train_batches, test_batches, optimizer_step, timer, grc, 
 
 def train(model, optimizer, train_batches, test_batches, epochs, master_address, rank, grc,
           loggers=(), test_time_in_total=True, timer=None, backend='nccl'):
-    dist.init_process_group(backend=backend, init_method=master_address, world_size=grc.world_size, rank=rank)
+    dist.init_process_group(backend=backend, init_method=f'tcp://{master_address}:1111', world_size=grc.world_size, rank=rank)
     # epsilon = [zeros(layer.numel(), device='cuda') for layer in model.parameters()]
     timer = timer or Timer()
     for epoch in range(epochs):

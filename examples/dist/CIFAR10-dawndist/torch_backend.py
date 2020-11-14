@@ -40,10 +40,13 @@ def warmup_cudnn(model, batch_size):
 def cifar10(root):
     train_set = torchvision.datasets.CIFAR10(root=root, train=True, download=True)
     test_set = torchvision.datasets.CIFAR10(root=root, train=False, download=True)
+    # print(train_set.__dict__.keys(), test_set.__dict__.keys())
     return {
-        'train': {'data': train_set.data, 'labels': train_set.targets},
-        'test': {'data': test_set.data, 'labels': test_set.targets}
+        'train': {'data': train_set.train_data, 'labels': train_set.train_labels},
+        'test': {'data': test_set.test_data, 'labels': test_set.test_labels}
     }
+
+
 
 
 #####################
