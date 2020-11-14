@@ -73,7 +73,18 @@ horovodrun -np 2 -H server1_ip:1,server2_ip:1 python examples/tensorflow/tensorf
 horovodrun -np 2 -H server1_ip:1,server2_ip:1 python examples/torch/pytorch_mnist.py
 
 ```
+Equivalent Open MPI command:
 
+```bash
+mpirun -np 2 \
+    -H server1_ip:1,server2_ip:1 \
+    -bind-to none -map-by slot \
+    -x NCCL_DEBUG=INFO -x LD_LIBRARY_PATH -x PATH \
+    -mca pml ob1 -mca btl ^openib \
+    python train.py
+```
+
+Pytorch DDP:
 ```bash
 # node 1
 python examples/dist/CIFAR10-dawndist/dawn.py --master_address=server1_ip --rank=0 --world_size=2
