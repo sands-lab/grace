@@ -21,7 +21,10 @@ export HOROVOD_CUDA_HOME=$ENV_PREFIX
 export HOROVOD_CUDA_INCLUDE=$ENV_PREFIX/include
 export HOROVOD_CUDA_LIB=$ENV_PREFIX/lib
 export HOROVOD_NCCL_HOME=$ENV_PREFIX
-export HOROVOD_GPU_OPERATIONS=MPI
+#export HOROVOD_GPU_OPERATIONS=MPI
+export HOROVOD_GPU_ALLREDUCE=MPI
+export HOROVOD_GPU_ALLGATHER=MPI
+export HOROVOD_GPU_BROADCAST=MPI
 export HOROVOD_WITH_PYTORCH=1
 export HOROVOD_WITH_TENSORFLOW=1
 export HOROVOD_WITHOUT_MXNET=1
@@ -40,4 +43,4 @@ cp -v patch_files/horovod/torch/__init__.py $ENV_PREFIX/lib/python3.7/site-packa
 cp -v patch_files/horovod/torch/mpi_ops.py $ENV_PREFIX/lib/python3.7/site-packages/horovod/torch/
 
 # install grace
-pip install --user -e .
+pip install -e .
