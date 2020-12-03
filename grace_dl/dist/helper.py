@@ -75,7 +75,7 @@ def grace_from_params(params):
 
     if comm == 'allreduce':
         from grace_dl.dist.communicator.allreduce import Allreduce
-        return Allreduce(compressor, memory)
+        return Allreduce(compressor, memory, params['world_size'])
     elif comm == 'allgather':
         from grace_dl.dist.communicator.allgather import Allgather
         return Allgather(compressor, memory, params['world_size'])
