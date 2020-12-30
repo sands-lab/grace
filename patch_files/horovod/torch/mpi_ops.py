@@ -27,16 +27,16 @@ _v2_api = LooseVersion(torch.__version__) >= LooseVersion('1.0.0')
 if _v2_api:
     from horovod.torch import mpi_lib_v2 as mpi_lib
     from horovod.common.basics import HorovodBasics as _HorovodBasics
-
     _NULL = ""
     _basics = _HorovodBasics(__file__, 'mpi_lib_v2')
 else:
     from horovod.torch import mpi_lib_impl
     from horovod.torch import mpi_lib
     from horovod.common.basics import HorovodBasics as _HorovodBasics
-
     _NULL = mpi_lib._ffi.NULL
     _basics = _HorovodBasics(__file__, 'mpi_lib_impl', '_mpi_lib_impl')
+
+from horovod.torch.compression import Compression
 
 # import basic methods
 init = _basics.init
@@ -53,6 +53,7 @@ gloo_built = _basics.gloo_built
 nccl_built = _basics.nccl_built
 ddl_built = _basics.ddl_built
 mlsl_built = _basics.mlsl_built
+
 
 # Schema: handle -> input, output
 # We keep input in order to make sure it does not get garbage collected
@@ -80,7 +81,7 @@ def _allreduce_async(tensor, output, average, name):
     if tensor.dtype == torch.float16 and not _fp16_supported:
         raise NotImplementedError(
             'float16 allreduce is not supported for PyTorch version {} < 1.0.0'
-                .format(torch.__version__))
+            .format(torch.__version__))
 
     function = _check_function(_allreduce_function_factory, tensor)
     handle = getattr(mpi_lib, function)(tensor, output, average,
@@ -93,18 +94,15 @@ def allreduce_async(tensor, average=True, name=None):
     """
     A function that performs asynchronous averaging or summation of the input tensor
     over all the Horovod processes. The input tensor is not modified.
-
     The reduction operation is keyed by the name. If name is not provided, an incremented
     auto-generated name is used. The tensor type and shape must be the same on all
     Horovod processes for a given name. The reduction will not start until all processes
     are ready to send and receive the tensor.
-
     Arguments:
         tensor: A tensor to average and sum.
         average: A flag indicating whether to compute average or summation,
                  defaults to average.
         name: A name of the reduction operation.
-
     Returns:
         A handle to the allreduce operation that can be used with `poll()` or
         `synchronize()`.
@@ -127,49 +125,47 @@ class HorovodAllreduce(torch.autograd.Function):
         return allreduce(grad_output, ctx.average), None, None
 
 
-def allreduce(tensor, average=True, name=None):
+def allreduce(tensor, average=True, name=None, compression=Compression.none):
     """
     A function that performs averaging or summation of the input tensor over all the
     Horovod processes. The input tensor is not modified.
-
     The reduction operation is keyed by the name. If name is not provided, an incremented
     auto-generated name is used. The tensor type and shape must be the same on all
     Horovod processes for a given name. The reduction will not start until all processes
     are ready to send and receive the tensor.
-
     This acts as a thin wrapper around an autograd function.  If your input
     tensor requires gradients, then callings this function will allow gradients
     to be computed and backpropagated.
-
     Arguments:
         tensor: A tensor to average and sum.
         average: A flag indicating whether to compute average or summation,
                  defaults to average.
         name: A name of the reduction operation.
-
+        compression: Compression algorithm used during allreduce to reduce the amount
+                     of data sent during the each parameter update step.  Defaults to
+                     not using compression.
     Returns:
         A tensor of the same shape and type as `tensor`, averaged or summed across all
         processes.
     """
-    return HorovodAllreduce.apply(tensor, average, name)
+    tensor_compressed, ctx = compression.compress(tensor)
+    summed_tensor_compressed = HorovodAllreduce.apply(tensor_compressed, average, name)
+    return compression.decompress(summed_tensor_compressed, ctx)
 
 
 def allreduce_async_(tensor, average=True, name=None):
     """
     A function that performs asynchronous in-place averaging or summation of the input
     tensor over all the Horovod processes.
-
     The reduction operation is keyed by the name. If name is not provided, an incremented
     auto-generated name is used. The tensor type and shape must be the same on all
     Horovod processes for a given name. The reduction will not start until all processes
     are ready to send and receive the tensor.
-
     Arguments:
         tensor: A tensor to average and sum.
         average: A flag indicating whether to compute average or summation,
                  defaults to average.
         name: A name of the reduction operation.
-
     Returns:
         A handle to the allreduce operation that can be used with `poll()` or
         `synchronize()`.
@@ -181,18 +177,15 @@ def allreduce_(tensor, average=True, name=None):
     """
     A function that performs in-place averaging or summation of the input tensor over
     all the Horovod processes.
-
     The reduction operation is keyed by the name. If name is not provided, an incremented
     auto-generated name is used. The tensor type and shape must be the same on all
     Horovod processes for a given name. The reduction will not start until all processes
     are ready to send and receive the tensor.
-
     Arguments:
         tensor: A tensor to average and sum.
         average: A flag indicating whether to compute average or summation,
                  defaults to average.
         name: A name of the reduction operation.
-
     Returns:
         A tensor of the same shape and type as `tensor`, averaged or summed across all
         processes.
@@ -217,15 +210,12 @@ def allgather_async(tensor, name=None):
     """
     A function that asynchronously concatenates the input tensor with the same input
     tensor on all other Horovod processes. The input tensor is not modified.
-
     The concatenation is done on the first dimension, so the input tensors on the
     different processes must have the same rank and shape, except for the first
     dimension, which is allowed to be different.
-
     Arguments:
         tensor: A tensor to allgather.
         name: A name of the allgather operation.
-
     Returns:
         A handle to the allgather operation that can be used with `poll()` or
         `synchronize()`.
@@ -259,19 +249,15 @@ def allgather(tensor, name=None):
     """
     A function that concatenates the input tensor with the same input tensor on
     all other Horovod processes. The input tensor is not modified.
-
     The concatenation is done on the first dimension, so the input tensors on the
     different processes must have the same rank and shape, except for the first
     dimension, which is allowed to be different.
-
     This acts as a thin wrapper around an autograd function.  If your input
     tensor requires gradients, then callings this function will allow gradients
     to be computed and backpropagated.
-
     Arguments:
         tensor: A tensor to allgather.
         name: A name of the allgather operation.
-
     Returns:
         A tensor of the same type as `tensor`, concatenated on dimension zero
         across all processes. The shape is identical to the input shape, except for
@@ -297,17 +283,14 @@ def broadcast_async(tensor, root_rank, name=None):
     """
     A function that asynchronously broadcasts the input tensor on root rank to the same
     input tensor on all other Horovod processes. The input tensor is not modified.
-
     The broadcast operation is keyed by the name. If name is not provided, an incremented
     auto-generated name is used. The tensor type and shape must be the same on all
     Horovod processes for a given name. The broadcast will not start until all processes
     are ready to send and receive the tensor.
-
     Arguments:
         tensor: A tensor to broadcast.
         root_rank: The rank to broadcast the value from.
         name: A name of the broadcast operation.
-
     Returns:
         A handle to the broadcast operation that can be used with `poll()` or
         `synchronize()`.
@@ -337,21 +320,17 @@ def broadcast(tensor, root_rank, name=None):
     """
     A function that broadcasts the input tensor on root rank to the same input tensor
     on all other Horovod processes. The input tensor is not modified.
-
     The broadcast operation is keyed by the name. If name is not provided, an incremented
     auto-generated name is used. The tensor type and shape must be the same on all
     Horovod processes for a given name. The broadcast will not start until all processes
     are ready to send and receive the tensor.
-
     This acts as a thin wrapper around an autograd function.  If your input
     tensor requires gradients, then callings this function will allow gradients
     to be computed and backpropagated.
-
     Arguments:
         tensor: A tensor to broadcast.
         root_rank: The rank to broadcast the value from.
         name: A name of the broadcast operation.
-
     Returns:
         A tensor of the same shape and type as `tensor`, with the value broadcasted
         from root rank.
@@ -363,17 +342,14 @@ def broadcast_async_(tensor, root_rank, name=None):
     """
     A function that asynchronously broadcasts the input tensor on root rank to the same
     input tensor on all other Horovod processes. The operation is performed in-place.
-
     The broadcast operation is keyed by the name. If name is not provided, an incremented
     auto-generated name is used. The tensor type and shape must be the same on all
     Horovod processes for a given name. The broadcast will not start until all processes
     are ready to send and receive the tensor.
-
     Arguments:
         tensor: A tensor to broadcast.
         root_rank: The rank to broadcast the value from.
         name: A name of the broadcast operation.
-
     Returns:
         A handle to the broadcast operation that can be used with `poll()` or
         `synchronize()`.
@@ -385,17 +361,14 @@ def broadcast_(tensor, root_rank, name=None):
     """
     A function that broadcasts the input tensor on root rank to the same input tensor
     on all other Horovod processes. The operation is performed in-place.
-
     The broadcast operation is keyed by the name. If name is not provided, an incremented
     auto-generated name is used. The tensor type and shape must be the same on all
     Horovod processes for a given name. The broadcast will not start until all processes
     are ready to send and receive the tensor.
-
     Arguments:
         tensor: A tensor to broadcast.
         root_rank: The rank to broadcast the value from.
         name: A name of the broadcast operation.
-
     Returns:
         A tensor of the same shape and type as `tensor`, with the value broadcasted
         from root rank.
@@ -409,11 +382,9 @@ def poll(handle):
     Polls an allreduce, allgather or broadcast handle to determine whether underlying
     asynchronous operation has completed. After `poll()` returns `True`, `synchronize()`
     will return without blocking.
-
     Arguments:
         handle: A handle returned by an allreduce, allgather or broadcast asynchronous
                 operation.
-
     Returns:
         A flag indicating whether the operation has completed.
     """
@@ -424,11 +395,9 @@ def synchronize(handle):
     """
     Synchronizes an asynchronous allreduce, allgather or broadcast operation until
     it's completed. Returns the result of the operation.
-
     Arguments:
         handle: A handle returned by an allreduce, allgather or broadcast asynchronous
                 operation.
-
     Returns:
         An output tensor of the operation.
     """

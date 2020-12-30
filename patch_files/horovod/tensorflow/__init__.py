@@ -23,6 +23,7 @@ from horovod.common.util import check_extension
 
 check_extension('horovod.tensorflow', 'HOROVOD_WITH_TENSORFLOW', __file__, 'mpi_lib')
 
+from horovod.tensorflow.compression import Compression
 from horovod.tensorflow.mpi_ops import allgather, broadcast, _allreduce
 from horovod.tensorflow.mpi_ops import init, shutdown
 from horovod.tensorflow.mpi_ops import size, local_size, rank, local_rank
@@ -34,14 +35,13 @@ from horovod.tensorflow.util import _executing_eagerly, _make_subgraph, _cache
 import tensorflow as tf
 
 
-def allreduce(tensor, grace, average=True, device_dense='', device_sparse=''):
+def allreduce(tensor, grace=None, average=True, device_dense='', device_sparse='',
+              compression=Compression.none):
     """Perform an allreduce on a tf.Tensor or tf.IndexedSlices.
-
     This function performs a bandwidth-optimal ring allreduce on the input
     tensor. If the input is an tf.IndexedSlices, the function instead does an
     allgather on the values and the indices, effectively doing an allreduce on
     the represented tensor.
-
     Arguments:
         tensor: tf.Tensor, tf.Variable, or tf.IndexedSlices to reduce.
                 The shape of the input must be identical across all ranks.
@@ -54,7 +54,6 @@ def allreduce(tensor, grace, average=True, device_dense='', device_sparse=''):
         grace: Compression algorithm used to reduce the amount of data
                      sent and received by each worker node.  Defaults to not
                      using compression.
-
     Returns:
         A tensor of the same shape and type as `tensor`, summed across all
         processes.
@@ -73,7 +72,14 @@ def allreduce(tensor, grace, average=True, device_dense='', device_sparse=''):
                                 dense_shape=tensor.dense_shape)
     else:
         with tf.device(device_dense):
-            new_tensor = grace.step(tensor)
+            if grace:
+                new_tensor = grace.step(tensor)
+            else:
+                horovod_size = tf.cast(size(), dtype=tensor.dtype)
+                tensor_compressed, ctx = compression.compress(tensor)
+                summed_tensor_compressed = _allreduce(tensor_compressed)
+                summed_tensor = compression.decompress(summed_tensor_compressed, ctx)
+                new_tensor = (summed_tensor / horovod_size) if average else summed_tensor
         return new_tensor
 
 
@@ -97,7 +103,6 @@ def _make_broadcast_group_fn():
 
 def broadcast_variables(variables, root_rank):
     """Broadcasts variables from root rank to all other processes.
-
     Arguments:
         variables: variables for broadcast
         root_rank: rank of the process from which global variables will be broadcasted
@@ -118,9 +123,7 @@ except AttributeError:
 if _global_variables is not None:
     def broadcast_global_variables(root_rank):
         """Broadcasts all global variables from root rank to all other processes.
-
         **NOTE:** deprecated in TensorFlow 2.0.
-
         Arguments:
             root_rank: rank of the process from which global variables will be broadcasted
                        to all other processes.
@@ -154,17 +157,14 @@ if _SessionRunHook is not None and _get_default_graph is not None:
         """
         SessionRunHook that will broadcast all global variables from root rank
         to all other processes during initialization.
-
         This is necessary to ensure consistent initialization of all workers when
         training is started with random weights or restored from a checkpoint.
-
         **NOTE:** deprecated in TensorFlow 2.0.
         """
 
         def __init__(self, root_rank, device=''):
             """Construct a new BroadcastGlobalVariablesHook that will broadcast all
             global variables from root rank to all other processes during initialization.
-
             Args:
               root_rank:
                 Rank that will send data, other ranks will receive data.
@@ -187,7 +187,8 @@ if _SessionRunHook is not None and _get_default_graph is not None:
 
 
 @_cache
-def _make_allreduce_grads_fn(name, grace, device_dense, device_sparse, sparse_as_dense):
+def _make_allreduce_grads_fn(name, grace, device_dense, device_sparse,
+                             compression, sparse_as_dense):
     def allreduce_grads(grads):
         with tf.name_scope(name + "_Allreduce"):
             if sparse_as_dense:
@@ -198,7 +199,8 @@ def _make_allreduce_grads_fn(name, grace, device_dense, device_sparse, sparse_as
             return [allreduce(grad,
                               grace=grace,
                               device_dense=device_dense,
-                              device_sparse=device_sparse)
+                              device_sparse=device_sparse,
+                              compression=compression)
                     if grad is not None else grad
                     for grad in grads]
 
@@ -224,21 +226,20 @@ if _LegacyOptimizer is not None:
         """An optimizer that wraps another tf.Optimizer, using an allreduce to
         average gradient values before applying gradients to model weights."""
 
-        def __init__(self, optimizer, grace, name=None, use_locking=False, device_dense='',
-                     device_sparse='',
+        def __init__(self, optimizer, grace=None, name=None, use_locking=False, device_dense='',
+                     device_sparse='', compression=Compression.none,
                      sparse_as_dense=False):
             if name is None:
                 name = "Distributed{}".format(type(optimizer).__name__)
             super(_DistributedOptimizer, self).__init__(name=name, use_locking=use_locking)
 
             self._optimizer = optimizer
-            self._allreduce_grads = _make_allreduce_grads_fn(name, grace, device_dense, device_sparse, sparse_as_dense)
+            self._allreduce_grads = _make_allreduce_grads_fn(
+                name, grace, device_dense, device_sparse, compression, sparse_as_dense)
 
         def compute_gradients(self, *args, **kwargs):
             """Compute gradients of all trainable variables.
-
             See Optimizer.compute_gradients() for more info.
-
             In DistributedOptimizer, compute_gradients() is overriden to also
             allreduce the gradients before returning them.
             """
@@ -267,13 +268,13 @@ if _LegacyOptimizer is not None:
             return self._optimizer.variables(*args, **kwargs)
 
 
-def DistributedOptimizer(optimizer, grace, name=None, use_locking=False, device_dense='', device_sparse='',
+def DistributedOptimizer(optimizer, grace=None, name=None, use_locking=False, device_dense='',
+                         device_sparse='', compression=Compression.none,
                          sparse_as_dense=False):
     """Construct a new DistributedOptimizer, which uses another optimizer
     under the hood for computing single-process gradient values and
     applying gradient updates after the gradient values have been averaged
     across all the Horovod ranks.
-
     Args:
       optimizer:
         Optimizer to use for computing gradients and applying updates.
@@ -301,10 +302,11 @@ def DistributedOptimizer(optimizer, grace, name=None, use_locking=False, device_
     """
     if isinstance(optimizer, _LegacyOptimizer):
         return _DistributedOptimizer(optimizer, grace, name, use_locking, device_dense,
-                                     device_sparse, sparse_as_dense)
+                                     device_sparse, compression, sparse_as_dense)
     elif isinstance(optimizer, tf.keras.optimizers.Optimizer):
         import horovod.tensorflow.keras as hvd_k
-        return hvd_k.DistributedOptimizer(optimizer, grace, name, device_dense, device_sparse, sparse_as_dense)
+        return hvd_k.DistributedOptimizer(optimizer, grace, name, device_dense, device_sparse,
+                                          compression, sparse_as_dense)
     else:
         raise ValueError('Provided optimizer doesn\'t inherit from either legacy '
                          'TensorFlow or Keras optimizer: %s' % optimizer)
@@ -312,7 +314,7 @@ def DistributedOptimizer(optimizer, grace, name=None, use_locking=False, device_
 
 if hasattr(tf, 'GradientTape'):
     class _DistributedGradientTape(tf.GradientTape):
-        def __init__(self, tape, grace, device_dense, device_sparse, sparse_as_dense,
+        def __init__(self, tape, grace, device_dense, device_sparse, compression, sparse_as_dense,
                      persistent=False, watch_accessed_variables=True):
             if hasattr(tape, '_watch_accessed_variables'):
                 super(self.__class__, self).__init__(persistent, watch_accessed_variables)
@@ -321,7 +323,7 @@ if hasattr(tf, 'GradientTape'):
 
             self._tape = tape
             self._allreduce_grads = _make_allreduce_grads_fn(
-                'DistributedGradientTape', grace, device_dense, device_sparse,
+                'DistributedGradientTape', grace, device_dense, device_sparse, compression,
                 sparse_as_dense)
 
         def gradient(self, target, sources, output_gradients=None):
@@ -332,10 +334,10 @@ if hasattr(tf, 'GradientTape'):
                 return gradients
 
 
-    def DistributedGradientTape(gradtape, grace, device_dense='', device_sparse='', sparse_as_dense=False):
+    def DistributedGradientTape(gradtape, grace=None, device_dense='', device_sparse='',
+                                compression=Compression.none, sparse_as_dense=False):
         """A tape that wraps another tf.GradientTape, using an allreduce to
         average gradient values before applying gradients to model weights.
-
         Args:
           gradtape:
             GradientTape to use for computing gradients and applying updates.
@@ -357,9 +359,9 @@ if hasattr(tf, 'GradientTape'):
         cls = type(gradtape.__class__.__name__, (gradtape.__class__,),
                    dict(_DistributedGradientTape.__dict__))
         if hasattr(gradtape, '_watch_accessed_variables'):
-            return cls(gradtape._tape, grace, device_dense, device_sparse,
+            return cls(gradtape._tape, grace, device_dense, device_sparse, compression,
                        sparse_as_dense, gradtape._persistent,
                        gradtape._watch_accessed_variables)
         else:
-            return cls(gradtape._tape, grace, device_dense, device_sparse,
+            return cls(gradtape._tape, grace, device_dense, device_sparse, compression,
                        sparse_as_dense, gradtape._persistent)

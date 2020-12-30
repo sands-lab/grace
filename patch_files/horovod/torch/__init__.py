@@ -17,8 +17,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import warnings
 from contextlib import contextmanager
+import warnings
 
 from horovod.common.util import check_extension
 
@@ -29,6 +29,7 @@ except:
     check_extension('horovod.torch', 'HOROVOD_WITH_PYTORCH',
                     __file__, 'mpi_lib', '_mpi_lib')
 
+from horovod.torch.compression import Compression
 from horovod.torch.mpi_ops import allreduce, allreduce_async, allreduce_, allreduce_async_
 from horovod.torch.mpi_ops import allgather, allgather_async
 from horovod.torch.mpi_ops import broadcast, broadcast_async, broadcast_, broadcast_async_
@@ -44,9 +45,10 @@ import collections
 
 
 class _DistributedOptimizer(torch.optim.Optimizer):
-    def __init__(self, params, named_parameters, grace,
+    def __init__(self, params, named_parameters, grace, compression,
                  backward_passes_per_step=1):
         super(self.__class__, self).__init__(params)
+        self._compression = compression
         self.grace = grace
 
         if named_parameters is not None:
@@ -115,10 +117,15 @@ class _DistributedOptimizer(torch.optim.Optimizer):
                     grad_acc.register_hook(self._make_hook(p))
                     self._grad_accs.append(grad_acc)
 
-    def _communicate_grad_async(self, p):
+    def _allreduce_grad_async(self, p):
         name = self._parameter_names.get(p)
         tensor = p.grad
-        handle, ctx = self.grace.send_step(tensor, name)
+        if self.grace:
+            handle, ctx = self.grace.send_step(tensor, name)
+        else:
+            tensor_compressed, ctx = self._compression.compress(tensor)
+
+            handle = allreduce_async_(tensor_compressed, average=True, name=name)
         return handle, ctx
 
     def _make_hook(self, p):
@@ -135,27 +142,31 @@ class _DistributedOptimizer(torch.optim.Optimizer):
             handle, ctx = None, None
             self._allreduce_delay[p] -= 1
             if self._allreduce_delay[p] == 0:
-                handle, ctx = self._communicate_grad_async(p)
+                handle, ctx = self._allreduce_grad_async(p)
             self._handles[p] = (handle, ctx)
-
         return hook
 
     def synchronize(self):
         missing_p = self._requires_update - set(self._handles.keys())
         for p in missing_p:
-            handles, ctx = self._communicate_grad_async(p)
-            self._handles[p] = (handles, ctx)
+            handle, ctx = self._allreduce_grad_async(p)
+            self._handles[p] = (handle, ctx)
 
         for p, value in self._handles.items():
-            handles, ctx = value
-            if handles is None:
-                handles, ctx = self._communicate_grad_async(p)
-                self._handles[p] = (handles, ctx)
-        for p, value in self._handles.items():
-            handles, ctx = value
-            tensor = self.grace.receive_step(handles, ctx)
-            self._allreduce_delay[p] = self.backward_passes_per_step
-            p.grad.set_(tensor)
+            handle, ctx = value
+            if handle is None:
+                handle, ctx = self._allreduce_grad_async(p)
+                self._handles[p] = (handle, ctx)
+        if self.grace:
+            for p, (handle, ctx) in self._handles.items():
+                output = self.grace.receive_step(handle, ctx)
+                self._allreduce_delay[p] = self.backward_passes_per_step
+                p.grad.set_(output)
+        else:
+            for p, (handle, _) in self._handles.items():
+                output = synchronize(handle)
+                self._allreduce_delay[p] = self.backward_passes_per_step
+                p.grad.set_(self._compression.decompress(output, ctx))
         self._handles.clear()
 
         self._synchronized = True
@@ -165,11 +176,8 @@ class _DistributedOptimizer(torch.optim.Optimizer):
         """
         A context manager used to specify that optimizer.step() should
         not perform synchronization.
-
         It's typically used in a following pattern:
-
         .. code-block:: python
-
             optimizer.synchronize()
             with optimizer.skip_synchronize():
                 optimizer.step()
@@ -201,26 +209,22 @@ class _DistributedOptimizer(torch.optim.Optimizer):
         return super(self.__class__, self).zero_grad()
 
 
-def DistributedOptimizer(optimizer, grace, named_parameters=None,
+def DistributedOptimizer(optimizer, grace=None, named_parameters=None,
+                         compression=Compression.none,
                          backward_passes_per_step=1):
     """
     An optimizer that wraps another torch.optim.Optimizer, using an allreduce to
     average gradient values before applying gradients to model weights.
-
     Allreduce operations are executed after each gradient is computed by ``loss.backward()``
     in parallel with each other. The ``step()`` method ensures that all allreduce operations are
     finished before applying gradients to the model.
-
     DistributedOptimizer exposes the ``synchronize()`` method, which forces allreduce operations
     to finish before continuing the execution. It's useful in conjunction with gradient
     clipping, or other operations that modify gradients in place before ``step()`` is executed.
     Make sure to use ``optimizer.skip_synchronize()`` if you're calling ``synchronize()``
     in your code.
-
     Example of gradient clipping:
-
     .. code-block:: python
-
         output = model(data)
         loss = F.nll_loss(output, target)
         loss.backward()
@@ -228,7 +232,6 @@ def DistributedOptimizer(optimizer, grace, named_parameters=None,
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
         with optimizer.skip_synchronize():
             optimizer.step()
-
     Arguments:
         optimizer: Optimizer to use for computing gradients and applying updates.
         named_parameters: A mapping between parameter names and values. Used for naming of
@@ -246,8 +249,8 @@ def DistributedOptimizer(optimizer, grace, named_parameters=None,
     # The goal is to override the `step()` method with an allreduce implementation.
     cls = type(optimizer.__class__.__name__, (optimizer.__class__,),
                dict(_DistributedOptimizer.__dict__))
-    return cls(optimizer.param_groups, named_parameters,
-               grace, backward_passes_per_step)
+    return cls(optimizer.param_groups, named_parameters, grace,
+               compression, backward_passes_per_step)
 
 
 def broadcast_parameters(params, root_rank):
@@ -255,7 +258,6 @@ def broadcast_parameters(params, root_rank):
     Broadcasts the parameters from root rank to all other processes.
     Typical usage is to broadcast the ``model.state_dict()``,
     ``model.named_parameters()``, or ``model.parameters()``.
-
     Arguments:
         params: One of the following:
             - list of parameters to broadcast
@@ -285,7 +287,6 @@ def broadcast_parameters(params, root_rank):
 def broadcast_optimizer_state(optimizer, root_rank):
     """
     Broadcasts an optimizer state from root rank to all other processes.
-
     Arguments:
         optimizer: An optimizer.
         root_rank: The rank of the process from which the optimizer will be
@@ -350,13 +351,11 @@ def broadcast_optimizer_state(optimizer, root_rank):
     def _create_callback(pid, name, t, p):
         def _from_tensor():
             state_dict['state'][pid][name] = t(p.cpu().numpy()[0])
-
         return _from_tensor
 
     def _create_option_callback(index, option_key, option_tensor, dtypes):
         def _from_tensor():
             optimizer.param_groups[index][option_key] = _recursive_cast(option_tensor.cpu().numpy()[0], dtypes)
-
         return _from_tensor
 
     # Param groups are an ordered list, normally there is only one per model,
