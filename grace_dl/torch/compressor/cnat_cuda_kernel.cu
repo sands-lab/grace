@@ -88,7 +88,7 @@ __global__ void cnat_compress_cuda_kernel(
       //if (exp<=17) encode = 0;
       //else if (exp<=143) encode = uint8_t(exp-17);
       //else encode = 127;
-      //if (input[index] < 0) encode += 256;
+      //if (input[index] < 0) encode += 128;
       //output[index] = encode;
     }
   }
@@ -116,7 +116,7 @@ __global__ void cnat_compress_deterministic_cuda_kernel(
       //if (exp<=17) encode = 0;
       //else if (exp<=143) encode = uint8_t(exp-17);
       //else encode = 127;
-      //if (input[index] < 0) encode += 256;
+      //if (input[index] < 0) encode += 128;
       //output[index] = encode;
     }
   }
@@ -130,6 +130,13 @@ __global__ void cnat_decompress_cuda_kernel(
   if(index < len) {
     uint32_t sign_and_exp = encoding_to_sign_and_exp[input[index]] << 23;
     output[index] = reinterpret_cast<float &>(sign_and_exp);
+    
+//     uint32_t decode;
+//     if (input[index]<=127) decode = input[index]+17;
+//     else decode = input[index]+145;
+//     if (!input[index] % 128) decode -= 17;
+//     uint32_t sign_and_exp = decode << 23;
+//     output[index] = reinterpret_cast<float &>(sign_and_exp);
   }
 }
 
