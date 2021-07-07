@@ -8,7 +8,7 @@ class OneBitCompressor(Compressor):
     (2014). 1-bit stochastic gradient descent and its application to data-parallel distributed training of speech DNNs.
     Retrieved from https://www.microsoft.com/en-us/research/publication/1-bit-stochastic-gradient-descent-and-application-to-data-parallel-distributed-training-of-speech-dnns/
     """
-    def compress(self, tensor):
+    def compress(self, tensor, name):
         tensor_shape = tf.shape(tensor)
         tensor_flatten = tf.reshape(tensor, [-1])
 

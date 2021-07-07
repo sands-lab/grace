@@ -18,7 +18,7 @@ class EFSignSGDCompressor(Compressor):
         agged_tensor = agged_tensor / self.learning_rate
         return agged_tensor
 
-    def compress(self, tensor):
+    def compress(self, tensor, name):
         """Encoding and compressing the signs """
 
         tensor_shape = tf.shape(tensor)

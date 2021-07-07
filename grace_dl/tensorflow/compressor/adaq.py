@@ -12,7 +12,7 @@ class AdaqCompressor(Compressor):
         super().__init__(tensors_size_are_same=False)
         self.compress_ratio = compress_ratio
 
-    def compress(self, tensor):
+    def compress(self, tensor, name):
         def quan(tensor, tensor_mask, compress_ratio):
             tensor_value = tf.boolean_mask(tensor, tensor_mask)
             mask_size = tf.reduce_sum(tf.cast(tensor_mask, dtype=tf.int32))

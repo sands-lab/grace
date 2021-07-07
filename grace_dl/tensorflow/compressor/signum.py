@@ -13,6 +13,8 @@ class SignumCompressor(Compressor):
         super().__init__()
         self.momentum_factor = momentum
         self.momentum = {}
+        for v in tf.trainable_variables():
+            self.momentum[v.name] = tf.Variable(tf.zeros_like(v), trainable=False)
 
     def aggregate(self, tensors):
         """Aggregate a list of tensors."""
@@ -21,13 +23,10 @@ class SignumCompressor(Compressor):
         agged_tensor = agged_tensor * 2.0 - 1.0
         return agged_tensor
 
-    def compress(self, tensor):
+    def compress(self, tensor, name):
         """Encoding and compressing the signs """
 
         # update tensor by momentum
-        name = tensor.name
-        if name not in self.momentum:
-            self.momentum[name] = tf.Variable(tf.zeros_like(tensor), trainable=False)
         tensor = (1.0 - self.momentum_factor) * tensor + self.momentum_factor * self.momentum[name]
         op = self.momentum[name].assign(tensor)
 

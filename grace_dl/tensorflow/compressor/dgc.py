@@ -12,7 +12,7 @@ class DgcCompressor(Compressor):
         super().__init__(tensors_size_are_same=False)
         self.compress_ratio = compress_ratio
 
-    def compress(self, tensor):
+    def compress(self, tensor, name):
         tensor_shape = tf.shape(tensor)
         tensor_flatten = tf.reshape(tensor, [-1])
         elemnum = tensor_flatten.get_shape().as_list()[0]

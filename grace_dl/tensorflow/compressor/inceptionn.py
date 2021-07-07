@@ -14,7 +14,7 @@ class INCEPTIONNCompressor(Compressor):
         super().__init__(tensors_size_are_same=False)
         self.error_bound = error_bound
 
-    def compress(self, tensor):
+    def compress(self, tensor, name):
         tensor_shape = tf.shape(tensor)
         tensor_flatten = tf.reshape(tensor, [-1])
         tensor_cast = tf.bitcast(tensor_flatten, tf.uint32)

@@ -9,7 +9,7 @@ class ThresholdCompressor(Compressor):
         super().__init__(tensors_size_are_same=False)
         self.threshold = threshold
 
-    def compress(self, tensor):
+    def compress(self, tensor, name):
         tensor_shape = tf.shape(tensor)
         tensor_flatten = tf.reshape(tensor, [-1])
         thr_mask = tf.math.greater(tf.math.abs(tensor_flatten), self.threshold)

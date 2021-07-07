@@ -8,7 +8,7 @@ class NaturalCompressor(Compressor):
     (2019). Natural compression for distributed deep learning.
     Retrieved from https://arxiv.org/abs/1905.10988
     """
-    def compress(self, tensor):
+    def compress(self, tensor, name):
         tensor_shape = tf.shape(tensor)
         tensor_flatten = tf.reshape(tensor, [-1])
 

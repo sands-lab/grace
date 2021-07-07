@@ -12,7 +12,7 @@ class QSGDCompressor(Compressor):
         super().__init__()
         self.quantum_num = quantum_num
 
-    def compress(self, tensor):
+    def compress(self, tensor, name):
         tensor_shape = tf.shape(tensor)
         tensor_flatten = tf.reshape(tensor, [-1])
         norm = tf.reshape(tf.norm(tensor_flatten), [-1])

@@ -15,7 +15,7 @@ class SignSGDCompressor(Compressor):
         agged_tensor = agged_tensor * 2.0 - 1.0
         return agged_tensor
 
-    def compress(self, tensor):
+    def compress(self, tensor, name):
         """Encoding and compressing the signs """
         tensor_shape = tf.shape(tensor)
         tensor_flatten = tf.reshape(tensor, [-1])

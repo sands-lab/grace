@@ -8,11 +8,15 @@ class ResidualMemory(Memory):
         self.residuals = {}
         self.beta = beta
         self.gamma = gamma
+        for v in tf.trainable_variables():
+            self.residuals[v.name] = tf.Variable(tf.zeros_like(v), trainable=False)
 
     def compensate(self, tensor, name):
         """Update the tensor with the residuals."""
-        if name not in self.residuals:
-            self.residuals[name] = tf.Variable(tf.zeros_like(tensor), trainable=False)
+        # if name not in self.residuals:
+        #     self.residuals[name] = tf.Variable(tf.zeros_like(tensor), trainable=False)
+        # shape_str = ''.join(str(e) for e in tensor.get_shape().as_list())
+        # self.residuals[name] = self.residuals_init[shape_str].pop()
         tensor = self.beta * self.residuals[name] + self.gamma * tensor
         return tensor
 

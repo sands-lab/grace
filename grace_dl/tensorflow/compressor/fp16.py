@@ -6,7 +6,7 @@ from grace_dl.tensorflow import Compressor
 class FP16Compressor(Compressor):
     """Compress all floating point gradients to 16-bit."""
 
-    def compress(self, tensor):
+    def compress(self, tensor, name):
         """Downcasts the tensor to 16-bit."""
         tensor_compressed = tensor
 

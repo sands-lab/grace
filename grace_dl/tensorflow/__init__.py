@@ -7,6 +7,13 @@ class Memory(ABC):
     """
     Interface for implementing a memory operator
     """
+    @staticmethod
+    def init_var(initial_value):
+        from collections import defaultdict
+        residuals_init = defaultdict(list)
+        for var in tf.trainable_variables():
+            shape_str = ''.join(str(e) for e in var.get_shape().as_list())
+            residuals_init[shape_str].append(tf.Variable(tf.zeros_like(var), trainable=False))
 
     @abstractmethod
     def compensate(self, tensor, name):
@@ -44,7 +51,7 @@ class Compressor(ABC):
         self.tensors_size_are_same = tensors_size_are_same
 
     @abstractmethod
-    def compress(self, tensor):
+    def compress(self, tensor, name):
         """
         Compresses a tensor and returns a collection of compressed tensors with the context needed to decompress it.
 
@@ -93,16 +100,15 @@ class Communicator(ABC):
         self.compressor = compressor
         self.memory = memory
 
-    def step(self, tensor):
+    def step(self, tensor, name):
         """
         Compensate, compress, update, communicate, decompress, and aggregate tensors of all the workers
 
         :param tensor: the tensor to be communicated across workers
         :return: the tensor after
         """
-        name = tensor.name
         tensor = self.memory.compensate(tensor, name)
-        tensors_compressed, ctx = self.compressor.compress(tensor)
+        tensors_compressed, ctx = self.compressor.compress(tensor, name)
         update_ops = self.memory.update(tensor, name, self.compressor, tensors_compressed, ctx)
         with tf.control_dependencies(update_ops):
             return self.send_receive(tensors_compressed, ctx)

@@ -8,6 +8,15 @@ class PowerSGDMemory(Memory):
         self.compress_rank = compress_rank
         self.q_memory = q_memory
         self.residuals = {}
+        for v in tf.trainable_variables():
+            self.residuals[v.name] = tf.Variable(tf.zeros_like(v), trainable=False)
+            tensor = v
+            n = tensor.get_shape().as_list()[0]
+            m = 1
+            for dim in tensor.get_shape().as_list()[1:]:
+                m = m * dim
+            r = int(min([m, n, self.compress_rank]))
+            self.q_memory[v.name] = tf.Variable(tf.random.normal([m, r]), trainable=False)
 
     def compensate(self, tensor, name):
         """Update the tensor with the residuals."""
@@ -15,16 +24,7 @@ class PowerSGDMemory(Memory):
         if tensor_dims == 1:
             return tensor
 
-        self.residuals[name] = tf.Variable(tf.zeros_like(tensor), trainable=False)
-        tensor = self.residuals[tensor.name] + tensor
-
-        n = tensor.get_shape().as_list()[0]
-        m = 1
-        for dim in tensor.get_shape().as_list()[1:]:
-            m = m * dim
-        r = int(min([m, n, self.compress_rank]))
-        self.q_memory[tensor.name] = tf.Variable(tf.random.normal([m, r]), trainable=False)
-
+        tensor = self.residuals[name] + tensor
         return tensor
 
     def update(self, tensor, name, compressor, tensor_compressed, ctx):

@@ -16,8 +16,10 @@ class PowerSGDCompressor(Compressor):
         self.world_size = world_size
         self.momentum = {}
         self.momentum_factor = momentum_factor
+        for v in tf.trainable_variables():
+            self.momentum[v.name] = tf.Variable(tf.zeros_like(v), trainable=False)
 
-    def compress(self, tensor):
+    def compress(self, tensor, name):
         tensor_dims = len(tensor.get_shape().as_list())
         if tensor_dims == 1:
             return [tensor], None
@@ -25,7 +27,7 @@ class PowerSGDCompressor(Compressor):
         tensor_shape = tf.shape(tensor)
         matrix = tf.reshape(tensor, [tensor_shape[0], -1])
 
-        q = self.q_memory[tensor.name]
+        q = self.q_memory[name]
         q, _ = tf.linalg.qr(q)
 
         p = tf.linalg.matmul(matrix, q)
@@ -33,10 +35,10 @@ class PowerSGDCompressor(Compressor):
         p, _ = tf.linalg.qr(p)
         q = tf.linalg.matmul(matrix, p, transpose_a=True)
         q = _allreduce(q) / self.world_size
-        new_q = self.q_memory[tensor.name].assign(q)
-        ctx = p, new_q, tensor_shape, tensor.name
+        new_q = self.q_memory[name].assign(q)
+        ctx = p, new_q, tensor_shape, name
         # variable initialization needs to be called before communication starts
-        self.momentum[tensor.name] = tf.Variable(tf.zeros_like(tensor), trainable=False)
+        # self.momentum[tensor.name] = tf.Variable(tf.zeros_like(tensor), trainable=False)
 
         return [], ctx
 

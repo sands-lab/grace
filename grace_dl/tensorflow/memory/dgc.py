@@ -11,6 +11,9 @@ class DgcMemory(Memory):
         self.momentum = momentum
         self.gradients = {}
         self.residuals = {}
+        for v in tf.trainable_variables():
+            self.residuals[v.name] = tf.Variable(tf.zeros_like(v), trainable=False)
+            self.gradients[v.name] = tf.Variable(tf.zeros_like(v), trainable=False)
 
     def compensate(self, tensor, name):
         """Update the tensor with the residuals."""
@@ -21,8 +24,6 @@ class DgcMemory(Memory):
             clipping_val = thr_global / tf.math.sqrt(self.world_size)
             tensor = tf.clip_by_value(tensor, -clipping_val, clipping_val)
 
-        self.residuals[name] = tf.Variable(tf.zeros_like(tensor), trainable=False)
-        self.gradients[name] = tf.Variable(tf.zeros_like(tensor), trainable=False)
         residual = self.residuals[name].assign(self.momentum * self.residuals[name] + tensor)
         tensor_compensate = self.gradients[name].assign(self.gradients[name] + residual) + tf.zeros_like(tensor)
         return tensor_compensate

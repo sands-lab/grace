@@ -4,12 +4,13 @@ def grace_from_params(params):
     comp = params.get('compressor', 'none')
     mem = params.get('memory', 'none')
     comm = params.get('communicator', 'allreduce')
+    compress_ratio = params.get('compress_ratio', 0.01)
     if comp == 'adaq':
         from grace_dl.tensorflow.compressor.adaq import AdaqCompressor
-        compressor = AdaqCompressor(compress_ratio=0.01)
+        compressor = AdaqCompressor(compress_ratio=compress_ratio)
     elif comp == 'dgc':
         from grace_dl.tensorflow.compressor.dgc import DgcCompressor
-        compressor = DgcCompressor(compress_ratio=0.01)
+        compressor = DgcCompressor(compress_ratio=compress_ratio)
     elif comp == 'efsignsgd':
         from grace_dl.tensorflow.compressor.efsignsgd import EFSignSGDCompressor
         compressor = EFSignSGDCompressor(lr=0.1)
@@ -36,7 +37,7 @@ def grace_from_params(params):
         compressor = QSGDCompressor(quantum_num=64)
     elif comp == 'randomk':
         from grace_dl.tensorflow.compressor.randomk import RandomKCompressor
-        compressor = RandomKCompressor(compress_ratio=0.01)
+        compressor = RandomKCompressor(compress_ratio=compress_ratio)
     elif comp == 'signsgd':
         from grace_dl.tensorflow.compressor.signsgd import SignSGDCompressor
         compressor = SignSGDCompressor()
@@ -54,7 +55,7 @@ def grace_from_params(params):
         compressor = ThresholdCompressor(threshold=0.01)
     elif comp == 'topk':
         from grace_dl.tensorflow.compressor.topk import TopKCompressor
-        compressor = TopKCompressor(compress_ratio=0.01)
+        compressor = TopKCompressor(compress_ratio=compress_ratio)
     elif comp == 'u8bit':
         from grace_dl.tensorflow.compressor.u8bit import U8bitCompressor
         compressor = U8bitCompressor()

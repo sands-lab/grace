@@ -24,7 +24,7 @@ class RandomKCompressor(Compressor):
         super().__init__()
         self.compress_ratio = compress_ratio
 
-    def compress(self, tensor):
+    def compress(self, tensor, name):
         """Use Python Random libraries RNG to compress by generating a list of indices to be transmitted."""
 
         tensor_shape = tf.shape(tensor)

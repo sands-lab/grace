@@ -13,7 +13,7 @@ class SketchCompressor(Compressor):
         super().__init__()
         self.quantiles = quantiles
 
-    def compress(self, tensor):
+    def compress(self, tensor, name):
         import tensorflow_probability as tfp
         tensor_shape = tf.shape(tensor)
         tensor_flatten = tf.reshape(tensor, [-1])

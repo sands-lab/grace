@@ -8,7 +8,7 @@ class U8bitCompressor(Compressor):
     (2015). 8-Bit Approximations for Parallelism in Deep Learning.
     Retrieved from http://arxiv.org/abs/1511.04561
     """
-    def compress(self, tensor):
+    def compress(self, tensor, name):
         dict128 = tf.constant(
             [
                 1.5000001e-06, 2.7500000e-06, 7.2499997e-06, 1.8750001e-05,
