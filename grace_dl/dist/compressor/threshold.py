@@ -12,16 +12,16 @@ class ThresholdCompressor(Compressor):
     def compress(self, tensor, name):
         shape = tensor.size()
         tensor = tensor.flatten()
-        numel = tensor.numel()
 
         indices, = torch.where(tensor.abs() > self.threshold)
         values = tensor[indices]
-        ctx = shape, numel
-        return [values, indices], ctx
+        ctx = shape
+        return [values, indices.int()], ctx
 
     def decompress(self, tensor_compressed, ctx):
-        shape, numel = ctx
+        shape = ctx
+        numel = shape.numel()
         values, indices = tensor_compressed
         tensor_decompressed = torch.zeros(numel, dtype=values.dtype, layout=values.layout, device=values.device)
-        tensor_decompressed.scatter_(0, indices, values)
+        tensor_decompressed.scatter_(0, indices.long(), values)
         return tensor_decompressed.view(shape)

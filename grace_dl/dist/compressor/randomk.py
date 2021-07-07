@@ -7,7 +7,8 @@ def sparsify(tensor, compress_ratio):
     tensor = tensor.flatten()
     numel = tensor.numel()
     k = max(1, int(numel * compress_ratio))
-    indices = torch.randperm(numel, device=tensor.device)[:k]
+    # indices = torch.randperm(numel, device=tensor.device)[:k]
+    indices = torch.randint(numel, [k], device=tensor.device)
     values = tensor[indices]
     return indices, values
 
