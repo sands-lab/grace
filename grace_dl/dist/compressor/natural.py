@@ -1,5 +1,4 @@
-import torch
-import cupy  # conda install -c conda-forge cupy=7.0.0=py37h0c141eb_2
+# conda install -c conda-forge cupy=7.0.0=py37h0c141eb_2
 from torch.utils.dlpack import to_dlpack
 from torch.utils.dlpack import from_dlpack
 
@@ -11,6 +10,7 @@ class NaturalCompressor(Compressor):
         super().__init__()
 
     def compress(self, tensor, name):
+        import cupy
         shape = tensor.size()
         tensor_flatten = tensor.flatten()
         cupy_tensor = cupy.fromDlpack(to_dlpack(tensor_flatten))
@@ -28,8 +28,8 @@ class NaturalCompressor(Compressor):
         tensor_compressed = exps.astype(cupy.uint8)
         return [from_dlpack(tensor_compressed.toDlpack())], shape
 
-
     def decompress(self, tensor_compressed, shape):
+        import cupy
         tensor_compressed, = tensor_compressed
         cupy_tensor = cupy.fromDlpack(to_dlpack(tensor_compressed))
         sign = cupy_tensor > 127
@@ -38,3 +38,20 @@ class NaturalCompressor(Compressor):
         tensor_decompressed = cupy.where(sign, -floats, floats)
         tensor_decompressed = cupy.multiply((exps >= 1).astype(cupy.float32), tensor_decompressed)
         return from_dlpack(tensor_decompressed.toDlpack()).view(shape)
+
+
+class NaturalCompressor_CUDA(Compressor):
+    def __init__(self):
+        super().__init__()
+
+    def compress(self, tensor, name):
+        import cnat_cuda
+        shape = tensor.size()
+        tensor_compressed = cnat_cuda.compress(tensor.flatten())
+        return [tensor_compressed, ], shape
+
+    def decompress(self, tensor_compressed, shape):
+        import cnat_cuda
+        tensor_compressed, = tensor_compressed
+        tensor_decompressed = cnat_cuda.decompress(tensor_compressed)
+        return tensor_decompressed.view(shape)

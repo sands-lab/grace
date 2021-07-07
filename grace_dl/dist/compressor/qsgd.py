@@ -49,3 +49,31 @@ class QSGDCompressor(Compressor):
         tensor_decompressed = tensor_decompressed.view(shape)
 
         return tensor_decompressed
+
+
+class QSGDCompressor_CUDA(Compressor):
+
+    def __init__(self, quantum_num, bucket_size=128):
+        super().__init__()
+        self.quantum_num = quantum_num
+        self.bucket_size = bucket_size
+
+    def compress(self, tensor, name):
+        import qsgd_cuda
+        shape = tensor.size()
+        tensor = tensor.flatten()
+
+        tensor_compressed, bucket_norm = qsgd_cuda.compress(tensor, self.quantum_num, self.bucket_size)
+        tensor_compressed = tensor_compressed, bucket_norm.float()
+
+        return tensor_compressed, shape
+
+    def decompress(self, tensor_compressed, shape):
+        import qsgd_cuda
+        tensor_compressed, bucket_norm = tensor_compressed
+
+        tensor_decompressed = qsgd_cuda.decompress(tensor_compressed, bucket_norm.double(), self.quantum_num, self.bucket_size)
+
+        return tensor_decompressed.view(shape)
+
+
