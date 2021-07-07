@@ -1,6 +1,6 @@
 #!/bin/bash
-PREFIX=${1:-"env-tf1.14"}
-ENV_ROOT=${2:-$(dirname "$(dirname "$(realpath "$0")")")}
+PREFIX=${1:-"env-tf1.15"}
+ENV_ROOT=$PWD
 CONDA_TYPE=`type -t conda`
 if [ ${CONDA_TYPE}"" == 'function' ]; then
   : # nothing to do
@@ -29,3 +29,6 @@ cp -v patch_files/horovod/tensorflow/keras/__init__.py ${HOROVOD_PATH}/tensorflo
 cp -v patch_files/horovod/_keras/__init__.py ${HOROVOD_PATH}/_keras/
 cp -v patch_files/horovod/torch/__init__.py ${HOROVOD_PATH}/torch/
 cp -v patch_files/horovod/torch/mpi_ops.py ${HOROVOD_PATH}/torch/
+
+cp -v patch_files/horovod/keras/__init__.py ${HOROVOD_PATH}/keras/
+cp -v patch_files/horovod/torch/optimizer.py ${HOROVOD_PATH}/torch/

@@ -1,4 +1,4 @@
-# Copyright 2018 Uber Technologies, Inc. All Rights Reserved.
+# Copyright 2017 Uber Technologies, Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,17 +13,13 @@
 # limitations under the License.
 # ==============================================================================
 
-import inspect
-
-import tensorflow as tf
-
-from tensorflow import keras
-from tensorflow.python.keras import backend as K
+import keras
+import keras.backend as K
 
 from horovod.tensorflow import init
 from horovod.tensorflow import shutdown
-from horovod.tensorflow import is_initialized, start_timeline, stop_timeline
 from horovod.tensorflow import size
+from horovod.tensorflow import is_initialized, start_timeline, stop_timeline
 from horovod.tensorflow import local_size
 from horovod.tensorflow import rank
 from horovod.tensorflow import local_rank
@@ -32,17 +28,9 @@ from horovod.tensorflow import gloo_enabled, gloo_built
 from horovod.tensorflow import nccl_built, ddl_built, ccl_built, cuda_built, rocm_built
 from horovod.tensorflow import Average, Compression, Sum
 
+
+from horovod.keras import callbacks, elastic
 import horovod._keras as _impl
-from horovod.tensorflow.keras import callbacks, elastic
-
-
-try:
-    # In later versions of TensorFlow, optimizers are spread across multiple modules. This set is used to distinguish
-    # stock optimizers that come with tf.keras from custom optimizers that may need to be wrapped specially.
-    _OPTIMIZER_MODULES = set([obj.__module__ for name, obj in inspect.getmembers(tf.keras.optimizers)
-                              if isinstance(obj, type(tf.keras.optimizers.Optimizer))])
-except:
-    _OPTIMIZER_MODULES = set()
 
 
 def DistributedOptimizer(optimizer, name=None,
@@ -52,8 +40,7 @@ def DistributedOptimizer(optimizer, name=None,
                          sparse_as_dense=False,
                          gradient_predivide_factor=1.0,
                          op=Average,
-                         backward_passes_per_step=1,
-                         average_aggregated_gradients=False):
+                         num_groups=0):
     """
     An optimizer that wraps another keras.optimizers.Optimizer, using an allreduce to
     average gradient values before applying gradients to model weights.
@@ -80,14 +67,8 @@ def DistributedOptimizer(optimizer, name=None,
                                    gradient_predivide_factor / size after the sum.
         op: The reduction operation to use when combining gradients across
             different ranks. Defaults to Average.
-        backward_passes_per_step: Number of backward passes to perform before calling
-                                  hvd.allreduce. This allows accumulating updates over
-                                  multiple mini-batches before reducing and applying them.
-        average_aggregated_gradients: Whether to average the aggregated gradients that
-                                      have been accumulated over multiple mini-batches.
-                                      If true divides gradient updates by
-                                      backward_passes_per_step.
-                                      Only applicable for backward_passes_per_step > 1.
+        num_groups: Number of groups to assign gradient allreduce ops to for explicit
+                    grouping. Defaults to no explicit groups.
     """
     if gradient_predivide_factor != 1.0 and rocm_built():
             raise ValueError('gradient_predivide_factor not supported yet with ROCm')
@@ -106,8 +87,7 @@ def DistributedOptimizer(optimizer, name=None,
         sparse_as_dense=sparse_as_dense,
         gradient_predivide_factor=gradient_predivide_factor,
         op=op,
-        backward_passes_per_step=backward_passes_per_step,
-        average_aggregated_gradients=average_aggregated_gradients,
+        num_groups=num_groups,
     )
 
 
@@ -121,12 +101,7 @@ def broadcast_global_variables(root_rank):
     return _impl.broadcast_global_variables(K, root_rank)
 
 
-def allreduce(value, name=None, average=True,
-              prescale_factor=1.0,
-              postscale_factor=1.0,
-              op=None,
-              grace=None,
-              compression=Compression.none):
+def allreduce(value, name=None, average=True, prescale_factor=1.0, postscale_factor=1.0):
     """
     Perform an allreduce on a tensor-compatible value.
 
@@ -134,29 +109,12 @@ def allreduce(value, name=None, average=True,
         value: A tensor-compatible value to reduce.
                The shape of the input must be identical across all ranks.
         name: Optional name for the constants created by this operation.
-        average:
-            .. warning:: .. deprecated:: 0.19.0
-
-               Use `op` instead. Will be removed in v0.21.0.
-
+        average: If True, computes the average over all ranks.
+                 Otherwise, computes the sum over all ranks.
         prescale_factor: Multiplicative factor to scale tensor before allreduce.
         postscale_factor: Multiplicative factor to scale tensor after allreduce.
-        op: The reduction operation to combine tensors across different ranks.
-            Defaults to Average if None is given.
-        compression: Compression algorithm used to reduce the amount of data
-                     sent and received by each worker node.  Defaults to not
-                     using compression.
     """
-    return _impl.allreduce(
-        backend=K,
-        value=value,
-        name=name,
-        average=average,
-        prescale_factor=prescale_factor,
-        postscale_factor=postscale_factor,
-        op=op,
-        grace=grace,
-        compression=compression)
+    return _impl.allreduce(K, value, name, average, prescale_factor, postscale_factor)
 
 
 def allgather(value, name=None):
@@ -221,5 +179,5 @@ def load_model(filepath, custom_optimizers=None, custom_objects=None, grace=None
     """
     def wrap_optimizer(cls):
         return lambda **kwargs: DistributedOptimizer(cls(**kwargs), grace=grace, compression=compression)
-    return _impl.load_model(keras, wrap_optimizer, _OPTIMIZER_MODULES, filepath, custom_optimizers, custom_objects)
-
+    optimizer_modules = {keras.optimizers.Optimizer.__module__}
+    return _impl.load_model(keras, wrap_optimizer, optimizer_modules, filepath, custom_optimizers, custom_objects)
