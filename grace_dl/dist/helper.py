@@ -8,7 +8,7 @@ def grace_from_params(params):
         compressor = DgcCompressor(compress_ratio)
     elif comp == 'efsignsgd':
         from grace_dl.dist.compressor.efsignsgd import EFSignSGDCompressor
-        lr = params.get('lr', 0.3)
+        lr = params.get('lr', 0.1)
         compressor = EFSignSGDCompressor(lr)
     elif comp == 'fp16':
         from grace_dl.dist.compressor.fp16 import FP16Compressor
@@ -16,6 +16,9 @@ def grace_from_params(params):
     elif comp == 'natural':
         from grace_dl.dist.compressor.natural import NaturalCompressor
         compressor = NaturalCompressor()
+    elif comp == 'natural_cuda':
+        from grace_dl.dist.compressor.natural import NaturalCompressor_CUDA
+        compressor = NaturalCompressor_CUDA()
     elif comp == 'none':
         from grace_dl.dist.compressor.none import NoneCompressor
         compressor = NoneCompressor()
@@ -27,8 +30,14 @@ def grace_from_params(params):
         compressor = PowerSGDCompressor()
     elif comp == 'qsgd':
         from grace_dl.dist.compressor.qsgd import QSGDCompressor
-        quantum_num = params.get('quantum_num', 256)
-        compressor = QSGDCompressor(quantum_num)
+        quantum_num = params.get('quantum_num', 127)
+        bucket_size = params.get('bucket_size', 128)
+        compressor = QSGDCompressor(quantum_num, bucket_size)
+    elif comp == 'qsgd_cuda':
+        from grace_dl.dist.compressor.qsgd import QSGDCompressor_CUDA
+        quantum_num = params.get('quantum_num', 127)
+        bucket_size = params.get('bucket_size', 128)
+        compressor = QSGDCompressor_CUDA(quantum_num, bucket_size)
     elif comp == 'randomk':
         from grace_dl.dist.compressor.randomk import RandomKCompressor
         compress_ratio = params.get('compress_ratio', 0.3)
@@ -45,21 +54,21 @@ def grace_from_params(params):
         compressor = TernGradCompressor()
     elif comp == 'threshold':
         from grace_dl.dist.compressor.threshold import ThresholdCompressor
-        threshold = params.get('threshold', 256)
+        threshold = params.get('threshold', 0.01)
         compressor = ThresholdCompressor(threshold)
     elif comp == 'topk':
         from grace_dl.dist.compressor.topk import TopKCompressor
         compress_ratio = params.get('compress_ratio', 0.3)
-        compressor = TopKCompressor(compress_ratio)
+        kernel = params.get('kernel', 'torch')
+        compressor = TopKCompressor(compress_ratio, kernel)
     else:
         raise NotImplementedError(comp)
 
     if mem == 'dgc':
         from grace_dl.dist.memory.dgc import DgcMemory
-        momentum = params.get('momentum', 0.3)
-        gradient_clipping = params.get('gradient_clipping', 0.3)
-        world_size = params.get('world_size', 2)
-        memory = DgcMemory(momentum, gradient_clipping, world_size)
+        momentum = params.get('momentum', 0.9)
+        gradient_clipping = params.get('gradient_clipping', False)
+        memory = DgcMemory(momentum, gradient_clipping, params['world_size'])
     elif mem == 'none':
         from grace_dl.dist.memory.none import NoneMemory
         memory = NoneMemory()
@@ -70,6 +79,9 @@ def grace_from_params(params):
     elif mem == 'residual':
         from grace_dl.dist.memory.residual import ResidualMemory
         memory = ResidualMemory()
+    elif mem == 'efsignsgd':
+        from grace_dl.dist.memory.efsignsgd import EFSignSGDMemory
+        memory = EFSignSGDMemory(lr=0.1)
     else:
         raise NotImplementedError(mem)
 
@@ -82,5 +94,8 @@ def grace_from_params(params):
     elif comm == 'broadcast':
         from grace_dl.dist.communicator.broadcast import Broadcast
         return Broadcast(compressor, memory, params['world_size'])
+    elif comm == 'alltoall':
+        from grace_dl.dist.communicator.all_to_all import AllToAll
+        return AllToAll(compressor, memory, params['world_size'])
     else:
         raise NotImplementedError(comm)
