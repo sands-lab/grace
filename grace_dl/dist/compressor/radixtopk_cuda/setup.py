@@ -12,6 +12,3 @@ setup(
     cmdclass={
         'build_ext': BuildExtension
     })
-
-
-# ,extra_compile_args={'nvcc': ['-I/data/scratch/hang/extension-cpp/radixtopk_cuda'], 'cxx': [''],}
