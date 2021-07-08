@@ -2,7 +2,7 @@
 
 ## Horovod
 
-The GRACE framework has been seamlessly integrated with Horovod 0.18.2. After following the
+The GRACE framework has been seamlessly integrated with Horovod 0.21.0. After following the
 [Installation guide](INSTALLING.md) the only modifications needed for a training script that uses Horovod's
 `DistributedOptimizer` or `DistributedGradientTape` is to replace the optional compression parameter with
 the mandatory `grace` as follows:
@@ -81,14 +81,17 @@ mpirun -np 2 \
     -bind-to none -map-by slot \
     -x NCCL_DEBUG=INFO -x LD_LIBRARY_PATH -x PATH \
     -mca pml ob1 -mca btl ^openib \
+    --mca btl_tcp_if_include network_interface -x NCCL_SOCKET_IFNAME=network_interface  \
     python train.py
 ```
 
 Pytorch DDP:
 ```bash
 # node 1
+export NCCL_SOCKET_IFNAME=network_interface
 python examples/dist/CIFAR10-dawndist/dawn.py --master_address=server1_ip --rank=0 --world_size=2
 # node 2
+export NCCL_SOCKET_IFNAME=network_interface
 python examples/dist/CIFAR10-dawndist/dawn.py --master_address=server1_ip --rank=1 --world_size=2
 
 ```

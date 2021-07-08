@@ -1,7 +1,7 @@
 # Implementing GRACE components
 
 ## Compressor
-The `Compressor` class has two methods, `compress` and `decompress`. As described in the [paper](http://hdl.handle.net/10754/662495), there are many ways to
+The `Compressor` class has two methods, `compress` and `decompress`. As described in the [paper](https://sands.kaust.edu.sa/papers/grace.icdcs21.pdf), there are many ways to
 implement a compressor. According to the categorization of each compressor, additional utility functions can be used
 such as `quantize`, `dequantize`, `sparisify`, `desparsify`, `pack`, and `unpack`. Examples of these functions are
 implemented for each compressor and can be found bundled with each compressor.
@@ -17,9 +17,9 @@ data type as `tensor`. A good compressor would try to keep these values very clo
 the collection of tensors in comparison with the original tensor.
 
 ## Memory
-The `Memory` class has two methods, `update` and `compensate`. As described in the [paper](http://hdl.handle.net/10754/662495), a typical residual memory
+The `Memory` class has two methods, `update` and `compensate`. As described in the [paper](https://sands.kaust.edu.sa/papers/grace.icdcs21.pdf), a typical residual memory
 implementation is provided by `ResidualMemory`.
-- The `update` method would store the residual difference between the node' original tensor and the decompression of the
+- The `update` method would store the residual difference between the original tensor and the decompression of the
 compressed original tensor (i.e. `residual[name] = tensor - decompress(compress(tensor))`). Generally, an `update` method
 expects the original tensor, the name that uniquely identifies it, the compressor (used for decompression), and
 the output of `compressor.compress(tensor)`. This method has no return value, with an exception for TensorFlow 1.15,
@@ -36,7 +36,7 @@ not to bundle a compression-specific `Memory` implementation with the appropriat
 ## Communicator
 Three implementations of `Communicator` classes are provided for each framework, each with a different collective method.
 A `Communicator` implementation needs to override at least the `send_receive` method, or in the case of
-Horovod 0.18.2 PyTorch which splits this step to the `async_send` and `wait_receive` methods. These methods expect
+Horovod PyTorch which splits this step to the `async_send` and `wait_receive` methods. These methods expect
 a collection of tensors, the context which is the result of `compression.compress` method, and the name of the
 compressed tensor.
 It has to be noted that not all communicator are compatible with every compressor. A notable example is the `Allreduce`
@@ -49,7 +49,6 @@ from grace_dl.torch import Communicator, Compressor, Memory
 
 class MyCommunicator(Communicator):
     ...
-
 
 class MyCompressor(Compressor):
     ...
