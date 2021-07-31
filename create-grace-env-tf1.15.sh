@@ -37,4 +37,4 @@ pip install --no-cache-dir horovod==0.21.0
 # install grace
 pip install -e .
 
-pip -r requirements.txt
+pip install -r requirements.txt
