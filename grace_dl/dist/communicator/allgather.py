@@ -13,7 +13,7 @@ class Allgather(Communicator):
                 dist.all_gather(tensor_list, tensor_compressed)
                 tensors_gathered.append(tensor_list)
         else:
-            local_sizes = torch.tensor([t.numel() for t in tensors]).cuda()  # TODO: set device
+            local_sizes = torch.tensor([t.numel() for t in tensors]).cuda(tensors[0].device.index)
             gathered_sizes = [torch.empty_like(local_sizes) for _ in range(self.world_size)]
             dist.all_gather(gathered_sizes, local_sizes)  # tensor of tensor sizes per rank
 
