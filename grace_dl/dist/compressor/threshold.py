@@ -13,7 +13,7 @@ class ThresholdCompressor(Compressor):
         shape = tensor.size()
         tensor = tensor.flatten()
 
-        indices, = torch.where(tensor.abs() > self.threshold)
+        indices, = torch.where(tensor.abs() >= min(self.threshold, torch.max(tensor)))
         values = tensor[indices]
         ctx = shape
         return [values, indices.int()], ctx
