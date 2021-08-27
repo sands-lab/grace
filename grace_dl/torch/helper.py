@@ -6,10 +6,12 @@ def grace_from_params(params):
     comm = params.get('communicator', 'allreduce')
     if comp == 'dgc':
         from grace_dl.torch.compressor.dgc import DgcCompressor
-        compressor = DgcCompressor(compress_ratio=0.01)
+        compress_ratio = params.get('compress_ratio', 0.3)
+        compressor = DgcCompressor(compress_ratio)
     elif comp == 'efsignsgd':
         from grace_dl.torch.compressor.efsignsgd import EFSignSGDCompressor
-        compressor = EFSignSGDCompressor(lr=0.1)
+        lr = params.get('lr', 0.1)
+        compressor = EFSignSGDCompressor(lr)
     elif comp == 'fp16':
         from grace_dl.torch.compressor.fp16 import FP16Compressor
         compressor = FP16Compressor()
@@ -27,43 +29,52 @@ def grace_from_params(params):
         compressor = PowerSGDCompressor()
     elif comp == 'qsgd':
         from grace_dl.torch.compressor.qsgd import QSGDCompressor
-        compressor = QSGDCompressor(quantum_num=64)
+        quantum_num = params.get('quantum_num', 127)
+        compressor = QSGDCompressor(quantum_num)
     elif comp == 'randomk':
         from grace_dl.torch.compressor.randomk import RandomKCompressor
-        compressor = RandomKCompressor(compress_ratio=0.01)
+        compress_ratio = params.get('compress_ratio', 0.3)
+        compressor = RandomKCompressor(compress_ratio)
     elif comp == 'signsgd':
         from grace_dl.torch.compressor.signsgd import SignSGDCompressor
         compressor = SignSGDCompressor()
     elif comp == 'signum':
         from grace_dl.torch.compressor.signum import SignumCompressor
-        compressor = SignumCompressor(momentum=0.9)
+        momentum = params.get('momentum', 0.9)
+        compressor = SignumCompressor(momentum)
     elif comp == 'terngrad':
         from grace_dl.torch.compressor.terngrad import TernGradCompressor
         compressor = TernGradCompressor()
     elif comp == 'threshold':
         from grace_dl.torch.compressor.threshold import ThresholdCompressor
-        compressor = ThresholdCompressor(threshold=0.01)
+        threshold = params.get('threshold', 0.01)
+        compressor = ThresholdCompressor(threshold)
     elif comp == 'topk':
         from grace_dl.torch.compressor.topk import TopKCompressor
-        compressor = TopKCompressor(compress_ratio=0.01)
+        compress_ratio = params.get('compress_ratio', 0.3)
+        compressor = TopKCompressor(compress_ratio)
     else:
         raise NotImplementedError(comp)
 
     if mem == 'dgc':
         from grace_dl.torch.memory.dgc import DgcMemory
-        memory = DgcMemory(momentum=0.9, gradient_clipping=False)
+        momentum = params.get('momentum', 0.9)
+        gradient_clipping = params.get('gradient_clipping', False)
+        memory = DgcMemory(momentum, gradient_clipping)
     elif mem == 'none':
         from grace_dl.torch.memory.none import NoneMemory
         memory = NoneMemory()
     elif mem == 'powersgd':
         from grace_dl.torch.memory.powersgd import PowerSGDMemory
-        memory = PowerSGDMemory(q_memory=compressor.q_memory, compress_rank=1)
+        compress_rank = params.get('compress_rank', 1)
+        memory = PowerSGDMemory(compressor.q_memory, compress_rank)
     elif mem == 'residual':
         from grace_dl.torch.memory.residual import ResidualMemory
         memory = ResidualMemory()
     elif mem == 'efsignsgd':
         from grace_dl.torch.memory.efsignsgd import EFSignSGDMemory
-        memory = EFSignSGDMemory(lr=0.1)
+        lr = params.get('lr', 0.1)
+        memory = EFSignSGDMemory(lr)
     else:
         raise NotImplementedError(mem)
 

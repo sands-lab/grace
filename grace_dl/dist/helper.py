@@ -81,7 +81,8 @@ def grace_from_params(params):
         memory = ResidualMemory()
     elif mem == 'efsignsgd':
         from grace_dl.dist.memory.efsignsgd import EFSignSGDMemory
-        memory = EFSignSGDMemory(lr=0.1)
+        lr = params.get('lr', 0.1)
+        memory = EFSignSGDMemory(lr)
     else:
         raise NotImplementedError(mem)
 
