@@ -448,8 +448,8 @@ class _DistributedAdasumOptimizer(torch.optim.Optimizer):
         return super(self.__class__, self).zero_grad()
 
 
-def DistributedOptimizer(optimizer, named_parameters=None,
-                         grace=None,
+def DistributedOptimizer(optimizer,
+                         grace=None, named_parameters=None,
                          compression=Compression.none,
                          backward_passes_per_step=1,
                          op=Average,
