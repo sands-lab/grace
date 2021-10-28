@@ -42,7 +42,8 @@ class Allgather(Communicator):
         for handle, sizes in zip(handles, tensor_sizes):
             gathered = synchronize(handle)
             tensors_ag.append(gathered.split(sizes))
-
+        # import time
+        # time.sleep(0.001)
         list_tensor_decompressed = []
         for tensor_compressed in zip(*tensors_ag):
             tensor_decompressed = self.compressor.decompress(tensor_compressed, ctx)
