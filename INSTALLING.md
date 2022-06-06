@@ -10,7 +10,7 @@ bash ./create-grace-env-tf1.15.sh
 
 This will create a conda env in `grace/env-tf1.15`
 
-### Install GARCE 
+### Install GRACE 
 The following assumes you want to install GARCE manually when you alreday have an enviroment installed with Horovod.
 GRACE comes as an installable pip package. It is recommended to install it with:
 ```shell script
