@@ -19,6 +19,7 @@ conda env create --prefix $ENV_PREFIX -f environment.yml --force
 conda activate $ENV_PREFIX
 pip install tensorflow==1.15 # include GPU support
 pip install torch==1.7.1+cu101 torchvision==0.8.2+cu101 torchaudio==0.7.2 -f https://download.pytorch.org/whl/torch_stable.html
+conda install -y protobuf
 
 #ln -s $ENV_PREFIX/lib/libcublas.so.10 $ENV_PREFIX/lib/libcublas.so.10.0
 #ln -s $ENV_PREFIX/lib/libcudart.so.10.1 $ENV_PREFIX/lib/libcudart.so.10.0
