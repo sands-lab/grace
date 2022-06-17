@@ -9,6 +9,8 @@ It provides a general framework and an API for implementing gradient compression
 GRACE includes the implementation of popular compression algorithms surveyed in [GRACE: A Compressed Communication Framework for Distributed Machine Learning](https://sands.kaust.edu.sa/papers/grace.icdcs21.pdf).
 GRACE supports both TensorFlow and Pytorch, and offers easy integration with training scripts. This simplifies
 the process of implemeting and comparing across compression methods.
+![grace_bert_bench](https://user-images.githubusercontent.com/52653060/174394060-8f616ed0-0fca-424d-ab9f-2648423d11c2.jpg)
+
 
 ## Install
 The `grace_dl` package can be install locally on your nodes. For Horovod support, it is required to apply
