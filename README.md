@@ -24,8 +24,8 @@ The three main components of this framework are the `Communicator`, `Compressor`
 
 ## Supported frameworks
 Currently the supported frameworks are:
-- Horovod 0.21.0 ([TensorFlow 1.15](grace_dl/tensorflow))
-- Horovod 0.21.0 ([PyTorch 1.7.0](grace_dl/torch))
+- Horovod 0.23.0 ([TensorFlow 1.15](grace_dl/tensorflow))
+- Horovod 0.23.0 ([PyTorch 1.7.1](grace_dl/torch))
 - DistributedDataParallel (DDP) ([PyTorch >= 1.4.0](grace_dl/dist))
 
 ## Usage
