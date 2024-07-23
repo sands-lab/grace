@@ -36,23 +36,23 @@ class Compressor(ABC):
 
 class Communicator(ABC):
     @abstractmethod
-    def async_send(self, tensors, name):
+    def async_send(self, tensors, name,process_set):
         raise NotImplemented("async_send was not implemented.")
 
     @abstractmethod
-    def wait_receive(self, handles, ctx):
+    def wait_receive(self, handles, ctx,process_set):
         raise NotImplemented("wait_receive was not implemented.")
 
     def __init__(self, compressor, memory):
         self.compressor = compressor
         self.memory = memory
 
-    def send_step(self, tensor, name):
+    def send_step(self, tensor, name,process_set):
         tensor = self.memory.compensate(tensor, name)
         tensors_compressed, ctx = self.compressor.compress(tensor, name)
         self.memory.update(tensor, name, self.compressor, tensors_compressed, ctx)
-        handles = self.async_send(tensors_compressed, name)
+        handles = self.async_send(tensors_compressed, name,process_set)
         return handles, ctx
 
-    def receive_step(self, handles, ctx):
-        return self.wait_receive(handles, ctx)
+    def receive_step(self, handles, ctx,process_set):
+        return self.wait_receive(handles, ctx,process_set)

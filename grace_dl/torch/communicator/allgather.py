@@ -9,7 +9,7 @@ class Allgather(Communicator):
         super().__init__(compressor, memory)
         self.world_size = world_size
 
-    def async_send(self, tensors_compressed, name):
+    def async_send(self, tensors_compressed, name,process_set):
         """
         :param tensors_compressed: list of flat tensors to communicate
         :param name: for the all_gather operation
@@ -26,17 +26,17 @@ class Allgather(Communicator):
             tensor_sizes = zip(*tensors_size_ag)  # transpose
         else:
             tensors_size = torch.tensor(tensors_size)  # TODO: set device
-            gathered = allgather(tensors_size)  # tensor of tensor sizes per rank
+            gathered = allgather(tensor=tensors_size,process_set=process_set)  # tensor of tensor sizes per rank
             tensor_sizes = gathered.view([self.world_size, -1]).t().tolist()  # transpose, to list
 
         handles = []
         for tensor_compressed in tensors_compressed:
-            handle = allgather_async(tensor_compressed)
+            handle = allgather_async(tensor=tensor_compressed,process_set=process_set)
             handles.append(handle)
 
         return handles, tensor_sizes
 
-    def wait_receive(self, result, ctx):
+    def wait_receive(self, result, ctx,process_set):
         handles, tensor_sizes = result
         tensors_ag = []
         for handle, sizes in zip(handles, tensor_sizes):

@@ -25,28 +25,32 @@ from horovod.common.util import split_list
 
 from horovod.torch.compression import Compression
 from horovod.torch.functions import broadcast_object
-from horovod.torch.mpi_ops import allreduce_async_, grouped_allreduce_async_
+from horovod.torch.mpi_ops import allreduce_async_, grouped_allreduce_async_, sparse_allreduce_async
 from horovod.torch.mpi_ops import synchronize
 from horovod.torch.mpi_ops import size
 from horovod.torch.mpi_ops import Average, Adasum, Sum
 from horovod.torch.mpi_ops import rocm_built
+from horovod.torch.mpi_ops import ProcessSet, global_process_set
 
 
 class _DistributedOptimizer(torch.optim.Optimizer):
-    def __init__(self, params, named_parameters, grace, compression,
+    def __init__(self, params, named_parameters,grace, compression,
                  backward_passes_per_step=1, op=Average,
                  gradient_predivide_factor=1.0,
-                 num_groups=0):
+                 groups=None,
+                 sparse_as_dense=False,
+                 process_set=global_process_set):
         super(self.__class__, self).__init__(params)
-        self._compression = compression
         self._grace = grace
+        self._process_set=process_set
+        self._compression = compression
 
         if named_parameters is not None:
             named_parameters = list(named_parameters)
         else:
-            named_parameters = [('allreduce.noname.%s' % i, v)
-                                for param_group in self.param_groups
-                                for i, v in enumerate(param_group['params'])]
+            named_parameters = [(f'allreduce.noname.{i}.{j}', v)
+                                for i, param_group in enumerate(self.param_groups)
+                                for j, v in enumerate(param_group['params'])]
         # make sure that named_parameters are tuples
         if any([not isinstance(p, tuple) for p in named_parameters]):
             raise ValueError('named_parameters should be a sequence of '
@@ -74,15 +78,33 @@ class _DistributedOptimizer(torch.optim.Optimizer):
                                  for _, v in sorted(named_parameters)}
         self.op = op
         self.gradient_predivide_factor = gradient_predivide_factor
+        self.sparse_as_dense = sparse_as_dense
+        self.process_set = process_set
+
         self._handles = {}
         self._grad_accs = []
         self._requires_update = set()
         self._synchronized = False
         self._should_synchronize = True
-        self._num_groups = num_groups
+
+        if groups is not None:
+            if not (isinstance(groups, list) or groups > 0):
+                raise ValueError('groups should be a non-negative integer or '
+                                'a list of list of torch.Tensor.')
+            if isinstance(groups, list):
+                grouped_parameter_ids = set()
+                for l in groups:
+                    for p in l:
+                        if not isinstance(p, torch.Tensor):
+                            raise ValueError('groups must consist of torch.Tensor.')
+                        if id(p) in grouped_parameter_ids:
+                            raise ValueError('A parameter can only appear once in groups.')
+                        grouped_parameter_ids.add(id(p))
+        self._groups = groups
         self._p_to_group = {}
         self._group_counts = {}
-        if size() > 1 or os.environ.get('HOROVOD_ELASTIC') == '1':
+
+        if self.process_set.included() and (size() > 1 or os.environ.get('HOROVOD_ELASTIC') == '1'):
             self._register_hooks()
 
     def load_state_dict(self, *args, **kwargs):
@@ -109,8 +131,7 @@ class _DistributedOptimizer(torch.optim.Optimizer):
             self._allreduce_delay[p] = self.backward_passes_per_step
 
     def _register_hooks(self):
-
-        if self._num_groups > 0:
+        if self._groups is not None:
             p_list = []
             # Get list of parameters with grads
             for param_group in self.param_groups:
@@ -121,16 +142,29 @@ class _DistributedOptimizer(torch.optim.Optimizer):
             # To ensure parameter order and group formation is consistent, broadcast p_list order
             # from rank 0 and use for every worker
             p_list_names = [self._parameter_names.get(p) for p in p_list]
-            p_list_names = broadcast_object(p_list_names, root_rank=0)
-            p_list = sorted(p_list, key=lambda p : p_list_names.index(self._parameter_names.get(p)))
+            p_list_names = broadcast_object(p_list_names, root_rank=0, process_set=self.process_set)
+            p_list = sorted(p_list, key=lambda p: p_list_names.index(self._parameter_names.get(p)))
 
             # Form groups
-            p_groups = split_list(p_list, self._num_groups)
+            if isinstance(self._groups, list):
+                p_groups = []
+                grouped_id = set()
+                p_list_ids = [id(p) for p in p_list]
+                for group in self._groups:
+                    p_groups.append([p for p in group if id(p) in p_list_ids])
+                    for p in p_groups[-1]:
+                        grouped_id.add(id(p))
+                for p in p_list:
+                    if id(p) not in grouped_id:
+                        p_groups.append([p])
+            else:
+                p_groups = split_list(p_list, self._groups)
+
             p_groups = [tuple(p) for p in p_groups]
             for group in p_groups:
-              for p in group:
-                self._p_to_group[p] = group
-              self._group_counts[group] = 0
+                for p in group:
+                    self._p_to_group[p] = group
+                self._group_counts[group] = 0
 
         for param_group in self.param_groups:
             for p in param_group['params']:
@@ -143,16 +177,33 @@ class _DistributedOptimizer(torch.optim.Optimizer):
                     self._grad_accs.append(grad_acc)
 
     def _allreduce_grad_async(self, p):
+        if p.grad is None:
+            # Gradient was not computed, but we still need to submit a tensor to allreduce
+            # as one of the other ranks may have computed it (due to dynamic forward functions).
+            #
+            # NOTE: this will not work if the gradient is sparse and we perform an allgather.
+            # Unfrotunately, there doesn't appear to be a good way to detect that the parameter will
+            # produce sparse gradients before computing the gradient.
+            p.grad = p.data.new(p.size()).zero_()
+
         name = self._parameter_names.get(p)
         tensor = p.grad
-        if self._grace and self._num_groups == 0 and self.op == Average:
-            handle, ctx = self._grace.send_step(tensor, name)
+
+        if p.grad.is_sparse:
+            if self.sparse_as_dense:
+                tensor = tensor.to_dense()
+            else:
+                return self._sparse_allreduce_grad_async(p, name)
+        if self._grace and self._groups is None and self.op == Average:
+            handle, ctx = self._grace.send_step(tensor, name,self._process_set)
+            postscale_factor = self.gradient_predivide_factor
         else:
+
             tensor_compressed, ctx = self._compression.compress(tensor)
 
             if self.op == Average:
-               # Split average operation across pre/postscale factors
-               # C++ backend will apply additional 1 / size() factor to postscale_factor for op == Average.
+                # Split average operation across pre/postscale factors
+                # C++ backend will apply additional 1 / size() factor to postscale_factor for op == Average.
                 prescale_factor = 1.0 / self.gradient_predivide_factor
                 postscale_factor = self.gradient_predivide_factor
             else:
@@ -160,16 +211,23 @@ class _DistributedOptimizer(torch.optim.Optimizer):
                 postscale_factor = 1.0
 
             handle = allreduce_async_(tensor_compressed, name=name, op=self.op,
-                                      prescale_factor=prescale_factor,
-                                      postscale_factor=postscale_factor)
+                                    prescale_factor=prescale_factor,
+                                    postscale_factor=postscale_factor,
+                                    process_set=self.process_set)
         return handle, ctx
 
     def _grouped_allreduce_grad_async(self, ps):
         name = self._parameter_names.get(ps[0])
         tensors_compressed, ctxs = zip(*[self._compression.compress(p.grad) for p in ps])
 
-        handle = grouped_allreduce_async_(tensors_compressed, name=name, op=self.op)
+        handle = grouped_allreduce_async_(tensors_compressed, name=name, op=self.op,
+                                          process_set=self.process_set)
         return handle, ctxs
+
+    def _sparse_allreduce_grad_async(self, p, name):
+        handle = sparse_allreduce_async(p.grad, name=name, op=self.op,
+                                        process_set=self.process_set)
+        return handle, None
 
     def _make_hook(self, p):
         def hook(*ignore):
@@ -185,7 +243,7 @@ class _DistributedOptimizer(torch.optim.Optimizer):
             handle, ctx = None, None
             self._allreduce_delay[p] -= 1
             if self._allreduce_delay[p] == 0:
-                if self._num_groups > 0:
+                if self._groups is not None:
                     group = self._p_to_group[p]
                     self._group_counts[group] += 1
                     if self._group_counts[group] == len(group):
@@ -202,6 +260,10 @@ class _DistributedOptimizer(torch.optim.Optimizer):
         return hook
 
     def synchronize(self):
+        if not self.process_set.included():
+            self._synchronized = True
+            return
+
         completed = set()
         for x in self._handles.keys():
           completed.update(x) if isinstance(x, tuple) else completed.add(x)
@@ -214,23 +276,37 @@ class _DistributedOptimizer(torch.optim.Optimizer):
             if handle is None:
                 handle, ctx = self._allreduce_grad_async(p)
                 self._handles[p] = (handle, ctx)
-
         for p, (handle, ctx) in self._handles.items():
+
             if isinstance(p, tuple):
                 # This was a grouped result, need to unpack
                 outputs = synchronize(handle)
                 for gp, output, gctx in zip(p, outputs, ctx):
                     self._allreduce_delay[gp] = self.backward_passes_per_step
                     gp.grad.set_(self._compression.decompress(output, gctx))
+                if self._groups is not None and self._group_counts[p] != 0:
+                    self._group_counts[p] = 0
             else:
-                if self._grace and self._num_groups == 0 and self.op == Average:
-                    # in GRACE, p is not tuple, but handle is.
-                    output = self._grace.receive_step(handle, ctx)
-                    self._allreduce_delay[p] = self.backward_passes_per_step
-                    p.grad.set_(output)
+                # When handle is a callable function, it returns the aggregated tensor result
+                if self._grace and self._groups is None and self.op == Average:
+                         output = self._grace.receive_step(handle, ctx,self._process_set)
+                         self._allreduce_delay[p] = self.backward_passes_per_step
+                         p.grad.set_(output)
                 else:
-                    output = synchronize(handle)
+                    output = synchronize(handle) if not callable(handle) else handle()
                     self._allreduce_delay[p] = self.backward_passes_per_step
+                    if self._groups is not None:
+                        group = self._p_to_group[p]
+                        if self._group_counts[group] != 0:
+                            self._group_counts[group] = 0
+                    if p.grad.is_sparse:
+                        aggregated = self._compression.decompress(output, ctx)
+                        if not aggregated.is_sparse:
+                            # When sparse_as_dense=True we need to convert the grad back to sparse before update
+                            aggregated = aggregated.to_sparse()
+
+                        # Sparse grads do not support set_ for some reason, so we do this as an equivalent
+                        p.grad.zero_().add_(aggregated)
                     p.grad.set_(self._compression.decompress(output, ctx))
         self._handles.clear()
 
@@ -448,13 +524,14 @@ class _DistributedAdasumOptimizer(torch.optim.Optimizer):
         return super(self.__class__, self).zero_grad()
 
 
-def DistributedOptimizer(optimizer,
-                         grace=None, named_parameters=None,
+def DistributedOptimizer(optimizer,  named_parameters=None,grace=None,
                          compression=Compression.none,
                          backward_passes_per_step=1,
                          op=Average,
                          gradient_predivide_factor=1.0,
-                         num_groups=0):
+                         num_groups=0, groups=None,
+                         sparse_as_dense=False,
+                         process_set=global_process_set):
     """
     An optimizer that wraps another torch.optim.Optimizer, using an allreduce to
     combine gradient values before applying gradients to model weights.
@@ -499,6 +576,18 @@ def DistributedOptimizer(optimizer,
                                    gradient_predivide_factor / size after the sum.
         num_groups: Number of groups to assign gradient allreduce ops to for explicit
                     grouping. Defaults to no explicit groups.
+        groups: The parameter to group the gradient allreduce ops. Accept values is a
+                non-negative integer or a list of list of torch.Tensor.
+                If groups is a non-negative integer, it is the number of groups to assign
+                gradient allreduce ops to for explicit grouping.
+                If groups is a list of list of torch.Tensor. Tensors in the same
+                inner list will be assigned to the same group, while parameter that does
+                not appear in any list will form a group itself.
+                Defaults as None, which is no explicit groups.
+        sparse_as_dense: If set True, convert all sparse gradients to dense and perform allreduce, then
+                         convert back to sparse before applying the update.
+      process_set: Gradients will only be reduced over Horovod processes belonging
+                   to this process set. Defaults to the global process set.
     """
     # We dynamically create a new class that inherits from the optimizer that was passed in.
     # The goal is to override the `step()` method with an allreduce implementation.
@@ -508,12 +597,23 @@ def DistributedOptimizer(optimizer,
         if op != Average:
             raise ValueError('gradient_predivide_factor not supported with op != Average')
 
+    if num_groups != 0:
+        warnings.warn('Parameter `num_groups` has been replaced by `groups` '
+                      'and will be removed in v0.23.0.', DeprecationWarning)
+        if groups is None:
+            groups = num_groups
+
+    if backward_passes_per_step <= 0:
+        raise ValueError("backward_passes_per_step must be > 0")
+
     if op != Adasum or size() == 1:
         cls = type(optimizer.__class__.__name__, (optimizer.__class__,),
                    dict(_DistributedOptimizer.__dict__))
-        return cls(optimizer.param_groups, named_parameters, grace, compression, backward_passes_per_step, op,
-                   gradient_predivide_factor, num_groups)
+        return cls(optimizer.param_groups, named_parameters,grace,  compression, backward_passes_per_step, op,
+                   gradient_predivide_factor, groups, sparse_as_dense, process_set)
     else:
+        if process_set != global_process_set:
+            raise NotImplementedError("Adasum does not support non-global process sets yet.")
         cls = type(optimizer.__class__.__name__, (optimizer.__class__,),
                    dict(_DistributedAdasumOptimizer.__dict__))
         return cls(optimizer.param_groups, named_parameters, compression, backward_passes_per_step)
